@@ -10,16 +10,24 @@ import Leap
 from Leap import CircleGesture, KeyTapGesture, ScreenTapGesture, SwipeGesture
 
 class Hand(sprite.DirtySprite):
-  def __init__(self):
+  left_hand = None
+  right_hand = None
+  WIDTH = 60
+  HEIGHT = 80
+  def __init__(self, is_left):
     super(Hand, self).__init__()
 
-    self.image = self.load_image()
-    print self.image
-    print self.image
+    self.image = self.load_image(is_left)
     self.rect = self.image.get_rect()
+    if is_left:
+        Hand.left_hand = self
+    else:
+        Hand.right_hand = self
 
-  def load_image(self):
-    return image.load('hand.jpg').convert()
+  def load_image(self, is_left):
+    hand = image.load('{}_hand.png'.format("left" if is_left else "right")).convert_alpha()
+    hand = pygame.transform.scale(hand, (Hand.WIDTH, Hand.HEIGHT))
+    return hand
 
 class GlobalState(object):
     time = 0
@@ -91,7 +99,7 @@ def init():
     # solid colors
     background = pygame.Surface(scr_size)
     background = background.convert()
-    background.fill((0, 0, 0)) # RGB colors
+    background.fill((255, 255, 255)) # RGB colors
 
     # draw background and update display
     screen.blit(background, (0, 0))
@@ -108,8 +116,8 @@ def init():
 # create groups
 def init_models():
     hand_group = sprite.Group()
-    for _ in range(2):
-        hand_group.add(Hand())
+    for i in range(2):
+        hand_group.add(Hand(i==0))
 
     song = Song('test_song')
     note_group = song.get_notes()
@@ -123,12 +131,14 @@ def init_models():
 
     return group, hand_group, note_group, song
 
+VIEWPORT_LEN = 120
 def transform_coordinates(pos):
-    return ((100-pos.x)*(HEIGHT/100), (100-pos.y)/(WIDTH/100))
+    return ((pos.x + VIEWPORT_LEN) / (VIEWPORT_LEN * 2) * WIDTH, (pos.z + VIEWPORT_LEN) / (VIEWPORT_LEN * 2) * HEIGHT)
 
 if __name__ == "__main__":
     screen, background, clock, controller = init()
     all_sprites, all_hands, all_notes, song = init_models()
+    font = pygame.font.Font(None, 32)
 
     while True:
       # event handling goes here
@@ -139,21 +149,22 @@ if __name__ == "__main__":
       # get ticks since last call
       time_passed = clock.tick( 60 ) # tick takes optional argument that is an int for max frames per second
 
-      all_hands.sprites()[0].rect.move_ip(1, 0)
-      all_hands.sprites()[1].rect.move_ip(0, 1)
+      for hand in all_hands.sprites():
+          hand.rect.center = (-hand.rect.width*2, -hand.rect.height*2)
 
       # collision handling and game updates would go here
 
+      screen.blit(background, (0, 0))
       frame = controller.frame()
+      print len(frame.hands)
       for i, hand in enumerate(frame.hands):
-          print hand.palm_position
+          if i == 0:
+            s = font.render(str(hand.palm_position), 1, (255, 255, 255))
+            screen.blit(s, (30, 30))
           conv = transform_coordinates(hand.palm_position)
-          hand = all_hands.sprites()[i]
-          print conv
-          hand.rect.x = conv[0]
-          hand.rect.y = conv[1]
+          hand_o = (Hand.left_hand if hand.is_left else Hand.right_hand)
+          hand_o.rect.center = conv
      
       # draw!
-      screen.blit(background, (0, 0))
       all_sprites.draw(screen)
       pygame.display.flip()
