@@ -79,7 +79,7 @@ class Note(sprite.DirtySprite):
     NOTE_SPEED = 1.0
     NOTE_THRESHOLD = 30.0
 
-    NOTE_DIEDOWN = 200
+    NOTE_DIEDOWN = 1000
     def __init__(self, x, y):
         super(Note, self).__init__()
         self.image = self.load_image()
@@ -99,7 +99,7 @@ class Note(sprite.DirtySprite):
         return (GS.time - self.note_time) > 0
 
     def load_image(self):
-        return pygame.transform.scale(image.load('note.jpg').convert_alpha(), (32, 32))
+        return pygame.transform.scale(image.load('note.jpg').convert_alpha(), (64, 64))
 
     def update(self):
         if GS.time > (self.note_time + Note.NOTE_DIEDOWN):
@@ -142,7 +142,7 @@ class Song(object):
         time += self.delay
         time -= self.start_time
         if (time - self.last_time) > self.mspb:
-            note = Note(random.randrange(40, 400), random.randrange(40, 400))
+            note = Note(random.randrange(40, 800), random.randrange(40, 600))
             note.set_delay(self.delay)
             self.group.add(note)
             self.last_time += self.mspb
@@ -218,8 +218,6 @@ if __name__ == "__main__":
 
       # get ticks since last call
       time_passed = clock.tick( 60 ) # tick takes optional argument that is an int for max frames per second
-      GS.time = pygame.time.get_ticks()
-      song.update()
 
       for hand in all_hands.sprites():
           hand.rect.center = (-hand.rect.width*2, -hand.rect.height*2)
@@ -236,6 +234,8 @@ if __name__ == "__main__":
       # draw!
       all_notes.update()
       all_sprites.draw(screen)
+      GS.time = pygame.time.get_ticks()
+      song.update()
       all_notes.draw(screen)
       collided = pygame.sprite.groupcollide(all_notes, all_hands, False, False)
       for note in collided:
