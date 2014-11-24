@@ -1,73 +1,57 @@
 #include "statechart.h"
-#include <math.h>
 
 typedef enum{
     STOP=0,
     DRIVE,
-    TURN
+    REVERSE,
+    END
 } robotState_t
 
-const char         Start = 128;
-const char         SafeMode = 131;
-const char         FullMode = 132;
-const char         Drive = 137;                // 4:   [Vel. Hi] [Vel Low] [Rad. Hi] [Rad. Low]
-const char         DriveDirect = 145;          // 4:   [Right Hi] [Right Low] [Left Hi] [Left Low]
-const char         Demo = 136;                 // 2:    Run Demo x
-const char         Sensors = 142;              // 1:    Sensor Packet ID
-const char         CoverandDock = 143;         // 1:    Return to Charger
-const char         SensorStream = 148;               // x+1: [# of packets requested] IDs of requested packets to stream
-const char         QueryList = 149;            // x+1: [# of packets requested] IDs of requested packets to stream
-const char         StreamPause = 150;          // 1:    0 = stop stream, 1 = start stream
-const char         PlaySong = 141;
-const char         Song = 140;
-                /* iRobot Create Sensor IDs */
-const char         BumpsandDrops = 7;
-const char         Distance = 19;
-const char         Angle = 20;
+
+const int8_t       maxCorrect=12;  //can get only 12 in a row correct
+const int32_t      totalGameDistance=500; //tunable distance of DDR game
+const int          maxSpeed=300;
 
 //may need to change these to adjust speed
 int speed_left=0;
 int speed_right=0;
 
-void execute_statechart(bool error, bool correcting,Serial bluetooth,Serial device, const int32_t netAngle){
+void execute_statechart(bool error,char bluetooth_byte,Serial device, const int32_t netDistance){
     static robotState_t state= STOP;
-    static robotState_t prevState= STOP;
-    //0 - absent , 1= true, -1= false
-    static int32_t keepGoing=0;
-    static int32_t angleAtManueverStart=0;
+    static int8_t correct=0;
+    static int32_t distanceAtManueverStart=0;
     
     //*****************************************************
     // state data - process inputs                        *
     //*****************************************************
     
-    if(state==STOP && correcting && !error){
+    if(state==STOP && !error){
         state=DRIVE;
-        prevState=STOP;
-        keepGoing=1;
+        correct=0;
     }
     
-    else if(state==STOP && error && !correcting){
-        state=TURN;
-        speed_left = 100;
-        speed_right= - speed_left;
-        prevState=STOP;
-        keepGoing=-1;
+    else if(state==STOP && error){
+        state=REVERSE;
     }
     
-    else if(state==DRIVE && (error || correcting)){
-        state=STOP;
-        prevState=DRIVE;
-        keepGoing=-1;
+    else if(state==DRIVE && (error && correct !=0)){
+        correct--;
+        speed_left=speed_right= (((correct+1)*1.0)/maxCorrect)*maxSpeed;
     }
-    else if(state==TURN && error && !correcting){
-        state=DRIVE;
-        prevState=TURN;
-        keepGoing=1;
+
+    else if(state==DRIVE && !error){
+        if(correct!=maxCorrect){
+            correct++;
+        }
+        speed_left=speed_right= (((correct+1)*1.0)/maxCorrect)*maxSpeed;
     }
-    else if(state==TURN && correcting && !error){
+
+    else if(state==DRIVE && (correct==0 && error)){
         state=STOP;
-        prevState=TURN;
-        keepGoing=0;
+    }
+
+    else if(state==REVERSE && !error){
+        state=STOP;
     }
     
     //*****************************************************
@@ -77,9 +61,18 @@ void execute_statechart(bool error, bool correcting,Serial bluetooth,Serial devi
     //*************************************
     // state transition - run region      *
     //*************************************
-     else if(state==TURN && abs(netAngle - angleAtManueverStart) >=30){
-         // still in the TURN state but does not keep moving
-         speed_left=speed_right=0;
+    int32_t distDiff=(netDistance - distanceAtManueverStart);
+
+     else if(state==DRIVE && distDiff >=100){
+        if(distanceAtManueverStart >= totalGameDistance){
+            state=END;
+        }
+    }
+
+    else if(state==REVERSE && distDiff < 0){
+        if(distanceAtManueverStart<=0){
+            state=END:
+        }
     }
 
     
@@ -93,13 +86,16 @@ void execute_statechart(bool error, bool correcting,Serial bluetooth,Serial devi
     case STOP:
         speed_left=speed_right=0;
         drive_forward(device);
-    case TURN:
-        //speed_left=100;
-        //speed_right=-speed_left;
-        turn_left(device)
+    case REVERSE:
+        reverse(device);
+        break;
+    case END:
+        speed_left=speed_right=0;
+        playsong(device);
+        stop(device);
+        break;
     case DRIVE:
-        speed_left=speed_right=300;
-        drive_forwad(device);
+        drive_forward(device);
         break;
     default:
         // Unknown state
@@ -116,20 +112,36 @@ void drive_forward(Serial device){
     device.putc(char(((speed_left)>>8)&0xFF));
     device.putc(char((speed_left)&0xFF));
  }
- 
-void turn_left(Serial device) {
-    device.putc(DriveDirect);
-    device.putc(char(((speed_right)>>8)&0xFF));
-    device.putc(char((speed_right)&0xFF));
-    device.putc(char(((-speed_left)>>8)&0xFF));
-    device.putc(char((-speed_left)&0xFF));
-}
 
-void turn_right(Serial device) {
+
+ void stop(Serial device){
+    device.putc(DriveDirect);
+    device.putc(char(0));
+    device.putc(char(0));
+    device.putc(char(0));
+    device.putc(char(0));
+ }
+
+ void playsong(Serial device) { 
+    device.putc(Song);
+    device.putc(char(0));
+    device.putc(char(2));
+    device.putc(char(64));
+    device.putc(char(24));    
+    device.putc(char(36));
+    device.putc(char(36));
+    wait(.2);
+    device.putc(PlaySong);
+    device.putc(char(0));
+}
+ 
+void reverse() {
     device.putc(DriveDirect);
     device.putc(char(((-speed_right)>>8)&0xFF));
     device.putc(char((-speed_right)&0xFF));
-    device.putc(char(((speed_left)>>8)&0xFF));
-    device.putc(char((speed_left)&0xFF));
+    device.putc(char(((-speed_left)>>8)&0xFF));
+    device.putc(char((-speed_left)&0xFF));
+ 
 }
+
 
