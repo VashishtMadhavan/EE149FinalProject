@@ -1,106 +1,98 @@
 #include "statechart.h"
 
 typedef enum{
-    STOP=0,
-    DRIVE,
-    REVERSE,
-    END
+    INACTIVE=0,
+    ACTIVE
 } robotState_t
 
+typedef enum{
+    FORWARD=0,
+    BACKWARD,
+    ABSENT
+} direction_t
 
-const int8_t       maxCorrect=12;  //can get only 12 in a row correct
-const int32_t      totalGameDistance=500; //tunable distance of DDR game
-const int          maxSpeed=300;
 
-//may need to change these to adjust speed
 int speed_left=0;
 int speed_right=0;
 
-void execute_statechart(bool error,char bluetooth_byte,Serial device, const int32_t netDistance){
-    static robotState_t state= STOP;
-    static int8_t correct=0;
-    static int32_t distanceAtManueverStart=0;
-    
+void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, int8_t direction,  
+    Serial device, int16_t gameDistance, const int16_t netDistance){
+    static robotState_t state= INACTIVE;
+    static direction_t currDirection= ABSENT;
+    static int16_t goalDistance = gameDistance;
+    static bool victory=false;
+
+    //inputs = 
+    // init = boolean
+    // drive = boolean
+    // gameOver = boolean
+    // currSpeed = integer with speed
+    // direction  = 8 bit integer which takes on -1,1,0
+    //  0 = absent, 1 = forward, -1 = backward
+
+
     //*****************************************************
     // state data - process inputs                        *
     //*****************************************************
     
-    if(state==STOP && !error){
-        state=DRIVE;
-        correct=0;
-    }
-    
-    else if(state==STOP && error){
-        state=REVERSE;
-    }
-    
-    else if(state==DRIVE && (error && correct !=0)){
-        correct--;
-        speed_left=speed_right= (((correct+1)*1.0)/maxCorrect)*maxSpeed;
+    if(state==INACTIVE && init){
+        state=ACTIVE;
+        speed_right=speed_left=0;
+        currDirection= FORWARD;
     }
 
-    else if(state==DRIVE && !error){
-        if(correct!=maxCorrect){
-            correct++;
+    else if (state==ACTIVE && drive){
+        currSpeed = speed;
+        if(direction > 0){
+            currDirection = FORWARD;
         }
-        speed_left=speed_right= (((correct+1)*1.0)/maxCorrect)*maxSpeed;
+        else if (direction < 0){
+            currDirection = BACKWARD;
+        }else{
+            currDirection = ABSENT;
+        }
     }
 
-    else if(state==DRIVE && (correct==0 && error)){
-        state=STOP;
+    else if (state==ACTIVE && (gameOver)){
+        state =  INACTIVE;
     }
 
-    else if(state==REVERSE && !error){
-        state=STOP;
-    }
-    
     //*****************************************************
-    // state transition - pause region (highest priority) *
+    // state data - run region                            *
     //*****************************************************
-    
-    //*************************************
-    // state transition - run region      *
-    //*************************************
-    int32_t distDiff=(netDistance - distanceAtManueverStart);
 
-     else if(state==DRIVE && distDiff >=100){
-        if(distanceAtManueverStart >= totalGameDistance){
-            state=END;
-        }
+    if(state==ACTIVE && (netDistance) >= goalDistance){
+        state = INACTIVE;
+        victory = true;
     }
 
-    else if(state==REVERSE && distDiff < 0){
-        if(distanceAtManueverStart<=0){
-            state=END:
-        }
-    }
+    //*****************************************************
+    // state data - default action                        *
+    //*****************************************************
 
-    
-    // else, no transitions are taken
 
-    //*****************
-    //* state actions *
-    //*****************
-    
+
     switch(state){
-    case STOP:
-        speed_left=speed_right=0;
-        drive_forward(device);
-    case REVERSE:
-        reverse(device);
-        break;
-    case END:
-        speed_left=speed_right=0;
-        playsong(device);
-        stop(device);
-        break;
-    case DRIVE:
-        drive_forward(device);
-        break;
-    default:
-        // Unknown state
-        speed_left = speed_right = 0;
-        break;
+        case INACTIVE:
+            speed_left=speed_right=0;
+            if( gameOver || victory){
+                //send victory to the bluetooth program
+                playsong(device);
+                stop(device);
+            }
+            break;
+        case ACTIVE:
+            speed_left = speed_right = currSpeed;
+            if(currDirection==FORWARD){
+                drive_forward(device);
+            }
+            else if(currDirection==BACKWARD){
+                reverse(device);
+            }
+            break;
+        default:
+            speed_left = speed_right = 0;
+            break;
     }
 
 }

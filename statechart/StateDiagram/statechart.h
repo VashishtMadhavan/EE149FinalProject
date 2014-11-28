@@ -20,7 +20,7 @@ const char         Distance = 19;
 const char         Angle = 20;
 
 
-void execute_statechart(bool error,char bluetooth_byte, Serial device,const int32_t netDistance);
+void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, int8_t direction, Serial device, int16_t gameDistance, const int16_t netDistance);
 void drive_forward(Serial device);
 void stop(Serial device);
 void playsong(Serial device);

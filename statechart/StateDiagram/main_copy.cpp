@@ -5,8 +5,8 @@
 #include "statechart.h"
 
 
-Serial bluetooth(D9,D10);
-Serial robot(D11,D12);
+Serial bluetooth(D9,D10); //TODO: change this to the proper UART ports
+Serial robot(D11,D12);  //CHANGE THIS TO PROPER SERIAL ports
 DigitalOut myled(LED1);
 
 void start();
@@ -31,17 +31,27 @@ uint64_t getTimeInMs(void);
 //delay
 void delayMs(const uint64_t msDelay);
 
+
+
+
+//DECLARING ALL VARIABLES FOR USE IN THE STATECHART
+//TODO: MAKESURE THE VARIABLES ARE ASSIGNED IN THE PROPER ISRs
+bool init = false;
+bool drive = false;
+bool gameOver = false;
+int currSpeed = 0;
+int8_t direction = 0;
+int16_t gameDistance = 300; //this is the distance to goal for the game
+
 int main() {
-    bool error=false;
-    wait(3);
+
     device.baud(57600);
     start();
-    device.attach(&read_sensor);
-    bluetooth.attach(&read_bluetooth);
+    device.attach(&read_sensor); //getting distance readings from iRobot sensors
+    bluetooth.attach(&read_bluetooth); //getting bluetooth info from leapmotion
 
     while(1) {
-        error=bluetooth_byte & 0X80; //checking if the highest bit is set to zero
-        execute_statechart(error,bluetooth_byte,robot,sensorDistance);
+        execute_statechart(init,drive,gameOver,currSpeed,direction, device, gameDistance,sensorDistance);
         //waitUntilNextMultiple(60);
      }
 }
@@ -62,8 +72,8 @@ void waitUntilNextMultiple(const uint64_t msMultiple){
     }
 }
 
-//ISR which triggers whenever bluetooth is sending byte
 void read_bluetooth(){
+    //TODO: alter this to fit the bluetooth protocol
     if(bluetooth.readable()){
         bluetooth_byte=bluetooth.getc();
     }
@@ -110,7 +120,6 @@ void read_sensor(){
                 Sensor_byte_count=0;
                 break;
             }
-
         }
     }
     return;
