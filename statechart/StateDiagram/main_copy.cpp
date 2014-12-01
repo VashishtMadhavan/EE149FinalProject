@@ -28,14 +28,13 @@ void read_sensor();
 char bluetooth_byte_count = 0;
 char bluetooth_Data_Byte = 0;
 char bluetooth_ID = 0;
-char bluetooth_Num_Bytes = 0;
-char bluetooth_Checksum = 0;
 char bluetooth_byte = 0; // byte from the bluetooth protocol that gets written into by the BlueSMIRF
 
 int16_t sensorDistance = 0;
 
 int executionTime = 0;
 int executionTimeID;
+int checksumCounter = 0;
 
 //wait until system clock passes to next integer multiple of period
 //taken from main.c in the irobot navigation folders
@@ -46,11 +45,7 @@ uint64_t getTimeInMs(void);
 //delay
 void delayMs(const uint64_t msDelay);
 
-
-
-
 //DECLARING ALL VARIABLES FOR USE IN THE STATECHART
-//TODO: MAKESURE THE VARIABLES ARE ASSIGNED IN THE PROPER ISRs
 bool init;
 bool drive;
 bool gameOver;
@@ -58,6 +53,12 @@ int currSpeed;
 bool directionForward;
 int16_t gameDistance = 300; //this is the distance to goal for the game
 
+//temp copies for vars
+bool initTemp;
+bool driveTemp;
+bool gameOverTemp;
+int currSpeedTemp;
+bool directionForwardTemp;
 
 void resetAllVars() {
     init = false;
@@ -68,12 +69,27 @@ void resetAllVars() {
     bluetooth_byte_count = 0;
 }
 
+void saveVarsToTemp() {
+    initTemp = init;
+    driveTemp = drive;
+    gameOverTemp = gameOver;
+    directionForwardTemp = directionForward;
+    currSpeedTemp = currSpeed;
+}
+
+void restoreVarsToTemp() {
+    init = initTemp;
+    drive = driveTemp;
+    gameOver = gameOverTemp;
+    directionForward = directionForwardTemp;
+    currSpeed = currSpeedTemp;
+}
+
 int main() {
     resetAllVars();
     device.baud(57600);
     start();
-    device.attach(&read_bluetooth); //getting distance readings from iRobot sensors
-    //bluetooth.attach(&read_bluetooth); //getting bluetooth info from leapmotion
+    device.attach(&read_bluetooth);
     while(1) {
         execute_statechart(init, drive, gameOver, currSpeed, direction, device, gameDistance, sensorDistance);
         //waitUntilNextMultiple(60);
@@ -97,8 +113,9 @@ void waitUntilNextMultiple(const uint64_t msMultiple){
 }
 
 void read_bluetooth(){
+    saveVarsToTemp();
+    resetAllVars();
     while (bluetooth.readable()){
-        resetAllVars();
         bluetooth_byte = bluetooth.getc();
         switch (bluetooth_byte_count) {
             // get OpCode
@@ -110,41 +127,50 @@ void read_bluetooth(){
                 } else {
                     drive = true;
                     bluetooth_byte_count++;
+                    checksumCounter += bluetooth_byte;
                 }
-               break;
-            }
-            // get num bytes
-            case 1: {
-                bluetooth_Num_Bytes = bluetooth_byte;
-                bluetooth_byte_count++;
                 break;
             }
             // get Drive id
-            case 2: {
-                if (bluetooth_byte == DriveDirectionID) bluetooth_byte_count++;
+            case 1: {
+                if (bluetooth_byte == DriveDirectionID) {
+                    bluetooth_byte_count++;
+                    checksumCounter += bluetooth_byte;
+                }
                 break;
             }
             // get Drive data
-            case 3: {
+            case 2: {
                 directionForward = getDriveDirection(bluetooth_byte);
                 currSpeed = getSpeed(bluetooth_byte);
+                checksumCounter += bluetooth_byte;
                 bluetooth_byte_count++;
             }
             // get execution time Id
-            case 4: {
+            case 3: {
                 if (isExecTimeId(bluetooth_byte)) {
                     executionTimeID = bluetooth_byte    
+                    checksumCounter += bluetooth_byte;
                     bluetooth_byte++
                 }
             }
             // get execution time
-            case 5: {
+            case 4: {
                 executionTime = getExecTime(bluetooth_byte, executionTime, executionTimeID);
                 if (executionTimeID == ExecTime4) {
-                    bluetooth_byte_count = 0;
+                    bluetooth_byte_count++;
                 } else {
                     bluetooth_byte_count = 4;
                 }
+                checksumCounter += bluetooth_byte;
+            }
+            // get checksum
+            case 5: {
+                checksumCounter = bluetooth_byte.getc();
+                if ((checksumCounter & 0xFF) != 0) {
+                    restoreVarsToTemp();
+                }
+                bluetooth_byte_count = 0;
             }
         }
     }
