@@ -169,7 +169,12 @@ class Song(object):
     def update(self):
         time = GS.time - self.start_time
         if (time - self.last_time) > self.mspb:
-            note = Note(random.randrange(200, 600), random.randrange(100, 500), self)
+            choose_pos = lambda: (random.randrange(200, 600), random.randrange(100, 500))
+            while True:
+                pos = choose_pos()
+                note = Note(pos[0], pos[1], self)
+                if not pygame.sprite.spritecollideany(note, self.group):
+                    break
             note.set_delay(self.delay)
             self.group.add(note)
             self.last_time += self.mspb
