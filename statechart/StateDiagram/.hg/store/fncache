@@ -1,0 +1,4 @@
+data/mbed.bld.i
+data/statechart.h.i
+data/statechart.cpp.i
+data/main_copy.cpp.i
