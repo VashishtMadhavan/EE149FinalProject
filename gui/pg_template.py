@@ -1,57 +1,65 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-from aubio import tempo, source
-from numpy import median
+#from aubio import tempo, source
+#from numpy import median
+import pygame, random, sys
+sys.path.insert(0, "/System/Library/Frameworks/Python.framework/Versions/Current/Extras/lib/python")
+import lightblue
+from pygame import sprite, image, QUIT, KEYDOWN
 
-def analyze_song(filename):
+import Leap
 
-    win_s = 2048                # fft size
-    hop_s = win_s / 2           # hop size
+class Bluetooth(object):
+    def __init__(self, mac_address):
+        self.s = lightblue.socket()
+        #self.s.connect((mac_address, 1))
+        print 'done'
 
-    s = source(filename, 0, hop_s)
-    samplerate = s.samplerate
-    print samplerate
-    o = tempo("default", win_s, hop_s, samplerate)
+    def send(self, data):
+        return
+        self.s.send(data)
 
-    # tempo detection delay, in samples
-    # default to 4 blocks delay to catch up with
-    delay = 4. * hop_s
-
-    # list of beats, in samples
-    beats = []
-
-    # total number of frames read
-    total_frames = 0
-    while True:
-        samples, read = s()
-        is_beat = o(samples)
-        if is_beat:
-            this_beat = o.get_last_ms()
-            beats.append(this_beat)
-        print o.get_bpm()
-        total_frames += read
-        if read < hop_s: break
-
-    median_win_s = 5
-    bpms_median = [ median(beats[i:i + median_win_s:1]) for i in range(len(beats) - median_win_s ) ]
-    print beats
-
-    return beats
+# def analyze_song(filename):
+# 
+#     win_s = 2048                # fft size
+#     hop_s = win_s / 2           # hop size
+# 
+#     s = source(filename, 0, hop_s)
+#     samplerate = s.samplerate
+#     print (samplerate)
+#     o = tempo("default", win_s, hop_s, samplerate)
+# 
+#     # tempo detection delay, in samples
+#     # default to 4 blocks delay to catch up with
+#     delay = 4. * hop_s
+# 
+#     # list of beats, in samples
+#     beats = []
+# 
+#     # total number of frames read
+#     total_frames = 0
+#     while True:
+#         samples, read = s()
+#         is_beat = o(samples)
+#         if is_beat:
+#             this_beat = o.get_last_ms()
+#             beats.append(this_beat)
+#         print (o.get_bpm())
+#         total_frames += read
+#         if read < hop_s: break
+# 
+#     median_win_s = 5
+#     bpms_median = [ median(beats[i:i + median_win_s:1]) for i in range(len(beats) - median_win_s ) ]
+#     print (beats)
+# 
+#     return beats
 
 #beats = analyze_song('song.wav')
 
-import os, sys
-sys.path.insert(0, os.environ.get('LEAPMOTION_SDK'))
-import pygame, random, sys
-from pygame import sprite, image, QUIT
-
-import Leap
-from Leap import CircleGesture, KeyTapGesture, ScreenTapGesture, SwipeGesture
-
 class Hand(sprite.DirtySprite):
-  left_hand = None
-  right_hand = None
+  left = None
+  right = None
   WIDTH = 60
   HEIGHT = 80
   def __init__(self, is_left):
@@ -60,9 +68,9 @@ class Hand(sprite.DirtySprite):
     self.image = self.load_image(is_left)
     self.rect = self.image.get_rect()
     if is_left:
-        Hand.left_hand = self
+        Hand.left = self
     else:
-        Hand.right_hand = self
+        Hand.right = self
 
   def load_image(self, is_left):
     hand = image.load('{}_hand.png'.format("left" if is_left else "right")).convert_alpha()
@@ -72,6 +80,7 @@ class Hand(sprite.DirtySprite):
 class GlobalState(object):
     time = 0
     note_group = None
+    screen = None
 
 GS = GlobalState()
 
@@ -82,7 +91,9 @@ class Note(sprite.DirtySprite):
     NOTE_DIEDOWN = 1000
     def __init__(self, x, y):
         super(Note, self).__init__()
-        self.image = self.load_image()
+        self.real_image = self.load_image()
+        self.image = pygame.Surface(self.real_image.get_rect().size)
+        self.image.fill((255, 255, 255))
         self.rect = self.image.get_rect()
         self.rect.x = x
         self.rect.y = y
@@ -105,12 +116,17 @@ class Note(sprite.DirtySprite):
         if GS.time > (self.note_time + Note.NOTE_DIEDOWN):
             self.kill()
 
-        if not self.hit and (GS.time - self.note_time) > 0:
-            n = self.image.convert_alpha()
-            # red at 50%
-            n.fill((255,0,0,127))
-            self.image.blit(n, (0,0))
+        if not self.can_hit:
+            percentage = (self.note_time - GS.time) / float(self.delay)
+            alpha = int(255 * percentage)
+            alpha = 255 - alpha
+            self.image.blit(self.real_image, (0, 0))
+            self.image.set_alpha(alpha)
+        elif not self.hit:
             self.hit = True
+            s = pygame.Surface((self.image.get_width(), self.image.get_height())).convert_alpha()
+            s.fill((0, 255, 0, 128))
+            self.image.blit(s, (0, 0))
 
     def set_delay(self, delay):
         self.delay = delay
@@ -120,11 +136,10 @@ class Song(object):
         self.sound = pygame.mixer.Sound(filename)
         self.group = sprite_group
         self.last_time = 0
-        self.bpm = 135
+        self.bpm = 90
         self.bpms = self.bpm / (60.0 * 1000)
         self.mspb = 1.0 / self.bpms
-        print self.mspb
-        self.delay = 1000
+        self.delay = 2000
         self.start_time = 0
 
     def play(self):
@@ -134,15 +149,9 @@ class Song(object):
         self.start_time = time
 
     def update(self):
-        #if not time > 3000:
-            #self.last_time = time
-            #return
-
-        time = GS.time
-        time += self.delay
-        time -= self.start_time
+        time = GS.time - self.start_time
         if (time - self.last_time) > self.mspb:
-            note = Note(random.randrange(40, 800), random.randrange(40, 600))
+            note = Note(random.randrange(200, 600), random.randrange(100, 500))
             note.set_delay(self.delay)
             self.group.add(note)
             self.last_time += self.mspb
@@ -178,7 +187,9 @@ def init(filename):
 
     clock = pygame.time.Clock()
 
-    return screen, background, clock, controller
+    blue = Bluetooth('00:06:66:00:A6:9B')
+
+    return screen, background, clock, controller, blue
 
 
 # create groups
@@ -202,9 +213,10 @@ def transform_coordinates(pos):
 
 if __name__ == "__main__":
     filename = 'song.wav'
-    screen, background, clock, controller = init(filename)
+    screen, background, clock, controller, bluetooth = init(filename)
     all_sprites, all_hands, all_notes, song = init_models(filename)
     font = pygame.font.Font(None, 32)
+    GS.screen = screen
 
     chan = song.sound.play()
     total_time = 0
@@ -215,6 +227,13 @@ if __name__ == "__main__":
       for event in pygame.event.get( ):
         if event.type == QUIT:
           sys.exit( )
+        elif event.type == KEYDOWN:
+          if event.unicode.lower() == 'q':
+            sys.exit()
+          elif event.unicode.lower() == 'a':
+            score += 10
+          elif event.unicode.lower() == 'b':
+            score -= 10
 
       # get ticks since last call
       time_passed = clock.tick( 60 ) # tick takes optional argument that is an int for max frames per second
@@ -222,13 +241,11 @@ if __name__ == "__main__":
       for hand in all_hands.sprites():
           hand.rect.center = (-hand.rect.width*2, -hand.rect.height*2)
 
-      # collision handling and game updates would go here
-
       screen.blit(background, (0, 0))
       frame = controller.frame()
       for hand in frame.hands:
           conv = transform_coordinates(hand.palm_position)
-          hand_o = (Hand.left_hand if hand.is_left else Hand.right_hand)
+          hand_o = (Hand.left if hand.is_left else Hand.right)
           hand_o.rect.center = conv
      
       # draw!
@@ -243,5 +260,6 @@ if __name__ == "__main__":
               note.kill()
               score += 10
       surface = font.render(str(score), True, (0, 255, 0))
+      bluetooth.send(b'1')
       screen.blit(surface, (30, 30))
       pygame.display.flip()
