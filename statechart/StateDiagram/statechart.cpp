@@ -1,26 +1,26 @@
 #include "statechart.h"
 
 typedef enum{
-    INACTIVE=0,
+    INACTIVE = 0,
     ACTIVE
 } robotState_t
 
 typedef enum{
-    FORWARD=0,
+    FORWARD = 0,
     BACKWARD,
     ABSENT
 } direction_t
 
 
-int speed_left=0;
-int speed_right=0;
+int speed_left = 0;
+int speed_right = 0;
 
-void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, int8_t direction,  
+void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, bool directionForward,  
     Serial device, int16_t gameDistance, const int16_t netDistance){
-    static robotState_t state= INACTIVE;
-    static direction_t currDirection= ABSENT;
+    static robotState_t state = INACTIVE;
+    static direction_t currDirection = ABSENT;
     static int16_t goalDistance = gameDistance;
-    static bool victory=false;
+    static bool victory = false;
 
     //inputs = 
     // init = boolean
@@ -35,13 +35,13 @@ void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, int
     // state data - process inputs                        *
     //*****************************************************
     
-    if(state==INACTIVE && init){
+    if(state == INACTIVE && init){
         state=ACTIVE;
-        speed_right=speed_left=0;
+        speed_right = speed_left = 0;
         currDirection= FORWARD;
     }
 
-    else if (state==ACTIVE && drive){
+    else if (state == ACTIVE && drive){
         currSpeed = speed;
         if(direction > 0){
             currDirection = FORWARD;
@@ -53,7 +53,7 @@ void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, int
         }
     }
 
-    else if (state==ACTIVE && (gameOver)){
+    else if (state == ACTIVE && (gameOver)){
         state =  INACTIVE;
     }
 
@@ -61,7 +61,7 @@ void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, int
     // state data - run region                            *
     //*****************************************************
 
-    if(state==ACTIVE && (netDistance) >= goalDistance){
+    if(state == ACTIVE && (netDistance) >= goalDistance){
         state = INACTIVE;
         victory = true;
     }
@@ -74,8 +74,8 @@ void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, int
 
     switch(state){
         case INACTIVE:
-            speed_left=speed_right=0;
-            if( gameOver || victory){
+            speed_left = speed_right = 0;
+            if(gameOver || victory){
                 //send victory to the bluetooth program
                 playsong(device);
                 stop(device);

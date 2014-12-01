@@ -7,20 +7,35 @@
 
 Serial bluetooth(D9,D10); //TODO: change this to the proper UART ports
 Serial device(D11,D12);  //CHANGE THIS TO PROPER SERIAL ports
-DigitalOut myled(LED1);
+
+// Bluetooth Commands
+const char         Initialize = 19;
+const char         IsGameOver = 23;
+const char         SpeedControl = 31;
+const char         DriveID = 34;
+const char         ExecTime1 = 35;
+const char         ExecTime1 = 36;
+const char         ExecTime1 = 37;
+const char         ExecTime1 = 38;
+
+// Other static vars
+const char         Forward = 1;
 
 void start();
 void read_sensor();
 
 /* Global variables with sensor packet info */
-char Sensor_byte_count = 0;
-char Sensor_Data_Byte = 0;
-char Sensor_ID = 0;
-char Sensor_Num_Bytes = 0;
-char Sensor_Checksum = 0;
-char bluetooth_byte=0; // byte from the bluetooth protocol that gets written into by the BlueSMIRF
+char bluetooth_byte_count = 0;
+char bluetooth_Data_Byte = 0;
+char bluetooth_ID = 0;
+char bluetooth_Num_Bytes = 0;
+char bluetooth_Checksum = 0;
+char bluetooth_byte = 0; // byte from the bluetooth protocol that gets written into by the BlueSMIRF
 
-int16_t sensorDistance=0;
+int16_t sensorDistance = 0;
+
+int executionTime = 0;
+int executionTimeID;
 
 //wait until system clock passes to next integer multiple of period
 //taken from main.c in the irobot navigation folders
@@ -36,22 +51,31 @@ void delayMs(const uint64_t msDelay);
 
 //DECLARING ALL VARIABLES FOR USE IN THE STATECHART
 //TODO: MAKESURE THE VARIABLES ARE ASSIGNED IN THE PROPER ISRs
-bool init = false;
-bool drive = false;
-bool gameOver = false;
-int currSpeed = 0;
-int8_t direction = 0;
+bool init;
+bool drive;
+bool gameOver;
+int currSpeed;
+bool directionForward;
 int16_t gameDistance = 300; //this is the distance to goal for the game
 
-int main() {
 
+void resetAllVars() {
+    init = false;
+    drive = false;
+    gameOver = false;
+    directionForward = false;
+    currSpeed = 0;
+    bluetooth_byte_count = 0;
+}
+
+int main() {
+    resetAllVars();
     device.baud(57600);
     start();
-    device.attach(&read_sensor); //getting distance readings from iRobot sensors
+    device.attach(&read_bluetooth); //getting distance readings from iRobot sensors
     //bluetooth.attach(&read_bluetooth); //getting bluetooth info from leapmotion
-
     while(1) {
-        execute_statechart(init,drive,gameOver,currSpeed,direction, device, gameDistance,sensorDistance);
+        execute_statechart(init, drive, gameOver, currSpeed, direction, device, gameDistance, sensorDistance);
         //waitUntilNextMultiple(60);
      }
 }
@@ -73,47 +97,54 @@ void waitUntilNextMultiple(const uint64_t msMultiple){
 }
 
 void read_bluetooth(){
-    //TODO: alter this to fit the bluetooth protocol
-    if(bluetooth.readable()){
-        bluetooth_byte=bluetooth.getc();
-    }
-}
-
-
-// ISR which triggers when we want to read the distance sensor
-void read_sensor(){
-     char start_character;
-    while (device.readable()) {
-        switch (Sensor_byte_count) {
+    while (bluetooth.readable()){
+        resetAllVars();
+        bluetooth_byte = bluetooth.getc();
+        switch (bluetooth_byte_count) {
+            // get OpCode
             case 0: {
-                start_character = device.getc();
-                if (start_character == 19) Sensor_byte_count++;
-                break;
+                if (bluetooth_byte == Initialize) {
+                    init = true;
+                } else if (bluetooth_byte == IsGameOver) {
+                    gameOver = true;
+                } else {
+                    drive = true;
+                    bluetooth_byte_count++;
+                }
+               break;
             }
+            // get num bytes
             case 1: {
-                Sensor_Num_Bytes = device.getc();
-                Sensor_byte_count++;
+                bluetooth_Num_Bytes = bluetooth_byte;
+                bluetooth_byte_count++;
                 break;
             }
+            // get Drive id
             case 2: {
-                Sensor_ID = device.getc();
-                Sensor_byte_count++;
+                if (bluetooth_byte == DriveDirectionID) bluetooth_byte_count++;
                 break;
             }
+            // get Drive data
             case 3: {
-                Sensor_Data_Byte = device.getc();
-                Sensor_byte_count++;
-                break;
+                directionForward = getDriveDirection(bluetooth_byte);
+                currSpeed = getSpeed(bluetooth_byte);
+                bluetooth_byte_count++;
             }
+            // get execution time Id
             case 4: {
-                Sensor_Checksum = device.getc();
-                // Could add code here to check the checksum and ignore a bad data packet
-                led1 = Sensor_Data_Byte &0x01;
-                led2 = Sensor_Data_Byte &0x02;
-                led3 = Sensor_Data_Byte &0x04;
-                led4 = Sensor_Data_Byte &0x08;
-                Sensor_byte_count = 0;
-                break;
+                if (isExecTimeId(bluetooth_byte)) {
+                    executionTimeID = bluetooth_byte    
+                    bluetooth_byte++
+                }
+            }
+            // get execution time
+            case 5: {
+                executionTime = getExecTime(bluetooth_byte, executionTime, executionTimeID);
+                if (executionTimeID == ExecTime4) {
+                    bluetooth_byte_count = 0;
+                } else {
+                    bluetooth_byte_count = 4;
+                }
             }
         }
     }
@@ -128,4 +159,68 @@ void start(){
     device.putc(1);
     device.putc(Distance);
     wait(.2);
+}
+
+bool getDriveDirection(char input) {
+    char bitmask = 0b1000;
+    bool forward = ((input & bitmask) == 0);
+    return forward
+}
+
+int getSpeed(char input) {
+    input = 0b0111 & input;
+    int speed;
+    switch (input):
+        case 0: {
+            speed = 0;
+            break; 
+        }
+        case 1: {
+            speed = 50;
+            break; 
+        }
+        case 2: {
+            speed = 100;
+            break; 
+        }
+        case 3: {
+            speed = 125;
+            break; 
+        }
+        case 4: {
+            speed = 150;
+            break; 
+        }
+        case 5: {
+            speed = 200;
+            break; 
+        }
+        case 6: {
+            speed = 250;
+            break; 
+        }
+        
+        return speed
+}
+
+bool isExecTimeId(char input) {
+    return (input == ExecTime1 || input == ExecTime2 || input == ExecTime3 || input == ExecTime4 ||)
+}
+
+int getExecTime(char input, int currTime, int id) {
+    int newInput = input;
+    switch(id) {
+        case 35:
+            break;
+        case 36:
+            newInput = newInput << 8;
+            break;
+        case 37:
+            newInput = newInput << 16;
+            break;
+        case 38:
+            newInput = newInput << 24;
+            break;
+        currTime = currTime | newInput;
+    }
 }
