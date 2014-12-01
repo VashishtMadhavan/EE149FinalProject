@@ -6,7 +6,7 @@
 
 
 Serial bluetooth(D9,D10); //TODO: change this to the proper UART ports
-Serial robot(D11,D12);  //CHANGE THIS TO PROPER SERIAL ports
+Serial device(D11,D12);  //CHANGE THIS TO PROPER SERIAL ports
 DigitalOut myled(LED1);
 
 void start();
@@ -48,7 +48,7 @@ int main() {
     device.baud(57600);
     start();
     device.attach(&read_sensor); //getting distance readings from iRobot sensors
-    bluetooth.attach(&read_bluetooth); //getting bluetooth info from leapmotion
+    //bluetooth.attach(&read_bluetooth); //getting bluetooth info from leapmotion
 
     while(1) {
         execute_statechart(init,drive,gameOver,currSpeed,direction, device, gameDistance,sensorDistance);
@@ -82,42 +82,37 @@ void read_bluetooth(){
 
 // ISR which triggers when we want to read the distance sensor
 void read_sensor(){
-    char start_char;
-    while(device.readable()){
-        switch(Sensor_byte_count){
-            case 0:{
-                //reading packet header ID
-                start_char=device.getc();
-                if(start_char==19) Sensor_byte_count++;
+     char start_character;
+    while (device.readable()) {
+        switch (Sensor_byte_count) {
+            case 0: {
+                start_character = device.getc();
+                if (start_character == 19) Sensor_byte_count++;
                 break;
             }
-            case 1:{
-                //number of packet bytes
-                Sensor_Num_Bytes=device.getc();
+            case 1: {
+                Sensor_Num_Bytes = device.getc();
                 Sensor_byte_count++;
                 break;
             }
             case 2: {
-                //sensor ID of next data value
-                Sensor_ID=device.getc();
+                Sensor_ID = device.getc();
                 Sensor_byte_count++;
                 break;
             }
             case 3: {
-                Sensor_Data_Byte= device.getc();
+                Sensor_Data_Byte = device.getc();
                 Sensor_byte_count++;
-                sensorDistance= ((int16_t)Sensor_Data_Byte) << 8;
                 break;
             }
             case 4: {
-                Sensor_Data_Byte = device.getc();
-                Sensor_byte_count++;
-                sensorDistance+=Sensor_Data_Byte;
-                break;
-            }
-            case 5: {
-                Sensor_Checksum= device.getc();
-                Sensor_byte_count=0;
+                Sensor_Checksum = device.getc();
+                // Could add code here to check the checksum and ignore a bad data packet
+                led1 = Sensor_Data_Byte &0x01;
+                led2 = Sensor_Data_Byte &0x02;
+                led3 = Sensor_Data_Byte &0x04;
+                led4 = Sensor_Data_Byte &0x08;
+                Sensor_byte_count = 0;
                 break;
             }
         }
