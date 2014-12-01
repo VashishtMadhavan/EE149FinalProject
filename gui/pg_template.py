@@ -20,6 +20,15 @@ class Bluetooth(object):
         return
         self.s.send(data)
 
+    def fail(self):
+        pass
+
+    def succeed(self):
+        pass
+
+    def update(self):
+        pass
+
 # def analyze_song(filename):
 # 
 #     win_s = 2048                # fft size
@@ -89,8 +98,10 @@ class Note(sprite.DirtySprite):
     NOTE_THRESHOLD = 30.0
 
     NOTE_DIEDOWN = 1000
-    def __init__(self, x, y):
+    def __init__(self, x, y, song):
         super(Note, self).__init__()
+        self.song = song
+
         self.real_image = self.load_image()
         self.image = pygame.Surface(self.real_image.get_rect().size)
         self.image.fill((255, 255, 255))
@@ -115,6 +126,7 @@ class Note(sprite.DirtySprite):
     def update(self):
         if GS.time > (self.note_time + Note.NOTE_DIEDOWN):
             self.kill()
+            self.song.failed_note()
 
         if not self.can_hit:
             percentage = (self.note_time - GS.time) / float(self.delay)
@@ -132,6 +144,8 @@ class Note(sprite.DirtySprite):
         self.delay = delay
 
 class Song(object):
+    MAX_THRESHOLD = 8
+    MIN_THRESHOLD = 0
     def __init__(self, filename, sprite_group):
         self.sound = pygame.mixer.Sound(filename)
         self.group = sprite_group
@@ -142,6 +156,10 @@ class Song(object):
         self.delay = 2000
         self.start_time = 0
 
+        self.tally = 0
+        self.threshold = 8
+        self.good_run = True
+
     def play(self):
         self.sound.play()
 
@@ -151,10 +169,34 @@ class Song(object):
     def update(self):
         time = GS.time - self.start_time
         if (time - self.last_time) > self.mspb:
-            note = Note(random.randrange(200, 600), random.randrange(100, 500))
+            note = Note(random.randrange(200, 600), random.randrange(100, 500), self)
             note.set_delay(self.delay)
             self.group.add(note)
             self.last_time += self.mspb
+
+    def failed_note(self):
+        if self.good_run:
+            self.good_run = False
+            self.tally = 0
+
+        if self.tally > self.threshold:
+            self.tally = 0
+            self.threshold = max(self.threshold - 1, self.MIN_THRESHOLD)
+            bluetooth.fail()
+        else:
+            self.tally += 1
+
+    def good_note(self):
+        if not self.good_run:
+            self.good_run = True
+            self.tally = 0
+
+        if self.tally > self.threshold:
+            self.tally = 0
+            self.threshold = max(self.threshold + 1, self.MAX_THRESHOLD)
+            bluetooth.succeed()
+        else:
+            self.tally += 1
 
 WIDTH = 800
 HEIGHT = 600
@@ -231,9 +273,9 @@ if __name__ == "__main__":
           if event.unicode.lower() == 'q':
             sys.exit()
           elif event.unicode.lower() == 'a':
-            score += 10
+            song.good_note()
           elif event.unicode.lower() == 'b':
-            score -= 10
+            song.failed_note()
 
       # get ticks since last call
       time_passed = clock.tick( 60 ) # tick takes optional argument that is an int for max frames per second
@@ -258,8 +300,8 @@ if __name__ == "__main__":
       for note in collided:
           if note.can_hit:
               note.kill()
-              score += 10
+              song.good_note()
       surface = font.render(str(score), True, (0, 255, 0))
-      bluetooth.send(b'1')
+      bluetooth.update()
       screen.blit(surface, (30, 30))
       pygame.display.flip()
