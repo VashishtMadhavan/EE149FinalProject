@@ -35,10 +35,10 @@ void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, boo
     // state data - process inputs                        *
     //*****************************************************
     
-    if(state == INACTIVE && init){
-        state=ACTIVE;
+    if (state == INACTIVE && init){
+        state = ACTIVE;
         speed_right = speed_left = 0;
-        currDirection= FORWARD;
+        currDirection = FORWARD;
     }
 
     else if (state == ACTIVE && drive){
@@ -61,7 +61,7 @@ void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, boo
     // state data - run region                            *
     //*****************************************************
 
-    if(state == ACTIVE && (netDistance) >= goalDistance){
+    if (state == ACTIVE && (netDistance) >= goalDistance){
         state = INACTIVE;
         victory = true;
     }
@@ -83,10 +83,10 @@ void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, boo
             break;
         case ACTIVE:
             speed_left = speed_right = currSpeed;
-            if(currDirection==FORWARD){
+            if(currDirection == FORWARD){
                 drive_forward(device);
             }
-            else if(currDirection==BACKWARD){
+            else if(currDirection == BACKWARD){
                 reverse(device);
             }
             break;

@@ -25,6 +25,7 @@ class Bluetooth(object):
     DRIVE_SPEED = 0
     MAX_DRIVE_SPEED = 6;
     MIN_DRIVE_SPEED = -6;
+    CHECKSUM = 0
 
     def __init__(self, mac_address):
         self.s = lightblue.socket()
@@ -33,42 +34,78 @@ class Bluetooth(object):
 
     def send(self, data):
         if (type(data) == int):
-            data = '{0:04b}'.format(data)
+            data = '{0:08b}'.format(data)
         self.s.send(data)
         return
 
     def fail(self):
         DRIVE_SPEED = max(MIN_DRIVE_SPEED, DRIVE_SPEED - 1)
-        outputSpeed = DRIVE_SPEED
+        output_speed = DRIVE_SPEED
         if DRIVE_SPEED < 0: 
-            outputSpeed += 10
+            output_speed += 10
         self.send(Speed_Control)
-        self.send(outputSpeed)
+        self.send(output_speed)
+
+        CHECKSUM += Speed_Control
+        CHECKSUM += output_speed
+
         return
 
     def succeed(self):
         DRIVE_SPEED = min(MIN_DRIVE_SPEED, DRIVE_SPEED + 1)
-        outputSpeed = DRIVE_SPEED
+        output_speed = DRIVE_SPEED
         if DRIVE_SPEED < 0: 
-            outputSpeed += 10
+            output_speed += 10
         self.send(Speed_Control)
-        self.send(outputSpeed)
+        self.send(output_speed)
+        
+        CHECKSUM += Speed_Control
+        CHECKSUM += output_speed
+
         return
 
-    def send_execution_time():
-        currTime = '{0:032b}'.format(int(time.time()))
+    def send_execution_time(self):
+        curr_time = '{0:032b}'.format(int(time.time()))
+        
+        time_byte = curr_time[24:32]
         self.send(ExecID1)
-        self.send(currTime[24:32])
+        self.send(time_byte)
+        CHECKSUM += int(ExecID1)
+        CHECKSUM += int(time_byte)
+
+        time_byte = curr_time[16:24]
         self.send(ExecID2)
-        self.send(currTime[16:24])
+        self.send(time_byte)
+        CHECKSUM += int(ExecID2)
+        CHECKSUM += int(time_byte)
+
+        time_byte = curr_time[8:16]
         self.send(ExecID3)
-        self.send(currTime[8:16])
+        self.send(time_byte)
+        CHECKSUM += int(ExecID3)
+        CHECKSUM += int(time_byte)
+
+        time_byte = curr_time[0:8]
         self.send(ExecID4)
-        self.send(currTime[0:8])
+        self.send(time_byte)
+        CHECKSUM += int(ExecID4)
+        CHECKSUM += int(time_byte)
+
+        self.send_checksum()
         return
 
-    def update(self):
-        pass
+    def send_checksum(self):
+        self.send(256 - CHECKSUM)
+        CHECKSUM = 0
+        return
+
+    def start(self):
+        self.send(Initialize)
+        return
+
+    def game_over(self):
+        self.send(Game_Over)
+        return
 
 
 # def analyze_song(filename):
@@ -349,6 +386,5 @@ if __name__ == "__main__":
               note.kill()
               song.good_note()
       surface = font.render(str(score), True, (0, 255, 0))
-      bluetooth.update()
       screen.blit(surface, (30, 30))
       pygame.display.flip()

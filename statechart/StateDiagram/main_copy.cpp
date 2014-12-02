@@ -34,7 +34,7 @@ int16_t sensorDistance = 0;
 
 int executionTime = 0;
 int executionTimeID;
-int checksumCounter = 0;
+int checksum = 0;
 
 //wait until system clock passes to next integer multiple of period
 //taken from main.c in the irobot navigation folders
@@ -59,31 +59,6 @@ bool driveTemp;
 bool gameOverTemp;
 int currSpeedTemp;
 bool directionForwardTemp;
-
-void resetAllVars() {
-    init = false;
-    drive = false;
-    gameOver = false;
-    directionForward = false;
-    currSpeed = 0;
-    bluetooth_byte_count = 0;
-}
-
-void saveVarsToTemp() {
-    initTemp = init;
-    driveTemp = drive;
-    gameOverTemp = gameOver;
-    directionForwardTemp = directionForward;
-    currSpeedTemp = currSpeed;
-}
-
-void restoreVarsToTemp() {
-    init = initTemp;
-    drive = driveTemp;
-    gameOver = gameOverTemp;
-    directionForward = directionForwardTemp;
-    currSpeed = currSpeedTemp;
-}
 
 int main() {
     resetAllVars();
@@ -127,7 +102,7 @@ void read_bluetooth(){
                 } else {
                     drive = true;
                     bluetooth_byte_count++;
-                    checksumCounter += bluetooth_byte;
+                    checksum += bluetooth_byte;
                 }
                 break;
             }
@@ -135,7 +110,7 @@ void read_bluetooth(){
             case 1: {
                 if (bluetooth_byte == DriveDirectionID) {
                     bluetooth_byte_count++;
-                    checksumCounter += bluetooth_byte;
+                    checksum += bluetooth_byte;
                 }
                 break;
             }
@@ -143,14 +118,14 @@ void read_bluetooth(){
             case 2: {
                 directionForward = getDriveDirection(bluetooth_byte);
                 currSpeed = getSpeed(bluetooth_byte);
-                checksumCounter += bluetooth_byte;
+                checksum += bluetooth_byte;
                 bluetooth_byte_count++;
             }
             // get execution time Id
             case 3: {
                 if (isExecTimeId(bluetooth_byte)) {
                     executionTimeID = bluetooth_byte    
-                    checksumCounter += bluetooth_byte;
+                    checksum += bluetooth_byte;
                     bluetooth_byte++
                 }
             }
@@ -162,12 +137,12 @@ void read_bluetooth(){
                 } else {
                     bluetooth_byte_count = 4;
                 }
-                checksumCounter += bluetooth_byte;
+                checksum += bluetooth_byte;
             }
             // get checksum
             case 5: {
-                checksumCounter = bluetooth_byte.getc();
-                if ((checksumCounter & 0xFF) != 0) {
+                checksum += bluetooth_byte.getc();
+                if ((checksum & 0xFF) != 0) {
                     restoreVarsToTemp();
                 }
                 bluetooth_byte_count = 0;
@@ -249,4 +224,29 @@ int getExecTime(char input, int currTime, int id) {
             break;
         currTime = currTime | newInput;
     }
+}
+
+void resetAllVars() {
+    init = false;
+    drive = false;
+    gameOver = false;
+    directionForward = false;
+    currSpeed = 0;
+    bluetooth_byte_count = 0;
+}
+
+void saveVarsToTemp() {
+    initTemp = init;
+    driveTemp = drive;
+    gameOverTemp = gameOver;
+    directionForwardTemp = directionForward;
+    currSpeedTemp = currSpeed;
+}
+
+void restoreVarsToTemp() {
+    init = initTemp;
+    drive = driveTemp;
+    gameOver = gameOverTemp;
+    directionForward = directionForwardTemp;
+    currSpeed = currSpeedTemp;
 }
