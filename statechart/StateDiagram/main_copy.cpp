@@ -13,10 +13,6 @@ const char         Initialize = 19;
 const char         IsGameOver = 23;
 const char         SpeedControl = 31;
 const char         DriveID = 34;
-const char         ExecTime1 = 35;
-const char         ExecTime1 = 36;
-const char         ExecTime1 = 37;
-const char         ExecTime1 = 38;
 
 // Other static vars
 const char         Forward = 1;
@@ -32,8 +28,6 @@ char bluetooth_byte = 0; // byte from the bluetooth protocol that gets written i
 
 int16_t sensorDistance = 0;
 
-int executionTime = 0;
-int executionTimeID;
 int checksum = 0;
 
 //wait until system clock passes to next integer multiple of period
@@ -121,26 +115,8 @@ void read_bluetooth(){
                 checksum += bluetooth_byte;
                 bluetooth_byte_count++;
             }
-            // get execution time Id
-            case 3: {
-                if (isExecTimeId(bluetooth_byte)) {
-                    executionTimeID = bluetooth_byte    
-                    checksum += bluetooth_byte;
-                    bluetooth_byte++
-                }
-            }
-            // get execution time
-            case 4: {
-                executionTime = getExecTime(bluetooth_byte, executionTime, executionTimeID);
-                if (executionTimeID == ExecTime4) {
-                    bluetooth_byte_count++;
-                } else {
-                    bluetooth_byte_count = 4;
-                }
-                checksum += bluetooth_byte;
-            }
             // get checksum
-            case 5: {
+            case 3: {
                 checksum += bluetooth_byte.getc();
                 if ((checksum & 0xFF) != 0) {
                     restoreVarsToTemp();
@@ -202,28 +178,6 @@ int getSpeed(char input) {
         }
         
         return speed
-}
-
-bool isExecTimeId(char input) {
-    return (input == ExecTime1 || input == ExecTime2 || input == ExecTime3 || input == ExecTime4 ||)
-}
-
-int getExecTime(char input, int currTime, int id) {
-    int newInput = input;
-    switch(id) {
-        case 35:
-            break;
-        case 36:
-            newInput = newInput << 8;
-            break;
-        case 37:
-            newInput = newInput << 16;
-            break;
-        case 38:
-            newInput = newInput << 24;
-            break;
-        currTime = currTime | newInput;
-    }
 }
 
 void resetAllVars() {
