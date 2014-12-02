@@ -3,7 +3,7 @@
 
 #from aubio import tempo, source
 #from numpy import median
-import pygame, random, sys
+import pygame, random, sys, time
 sys.path.insert(0, "/System/Library/Frameworks/Python.framework/Versions/Current/Extras/lib/python")
 import lightblue
 from pygame import sprite, image, QUIT, KEYDOWN
@@ -11,23 +11,65 @@ from pygame import sprite, image, QUIT, KEYDOWN
 import Leap
 
 class Bluetooth(object):
+
+    # OpCodes and Packet IDs
+    Initialize = 19
+    Game_Over = 23
+    Speed_Control = 31
+    DriveID = 34
+    ExecID1 = 35
+    ExecID2 = 36
+    ExecID3 = 37
+    ExecID4 = 38
+
+    DRIVE_SPEED = 0
+    MAX_DRIVE_SPEED = 6;
+    MIN_DRIVE_SPEED = -6;
+
     def __init__(self, mac_address):
         self.s = lightblue.socket()
         #self.s.connect((mac_address, 1))
         print 'done'
 
     def send(self, data):
-        return
+        if (type(data) == int):
+            data = '{0:04b}'.format(data)
         self.s.send(data)
+        return
 
     def fail(self):
-        pass
+        DRIVE_SPEED = max(MIN_DRIVE_SPEED, DRIVE_SPEED - 1)
+        outputSpeed = DRIVE_SPEED
+        if DRIVE_SPEED < 0: 
+            outputSpeed += 10
+        self.send(Speed_Control)
+        self.send(outputSpeed)
+        return
 
     def succeed(self):
-        pass
+        DRIVE_SPEED = min(MIN_DRIVE_SPEED, DRIVE_SPEED + 1)
+        outputSpeed = DRIVE_SPEED
+        if DRIVE_SPEED < 0: 
+            outputSpeed += 10
+        self.send(Speed_Control)
+        self.send(outputSpeed)
+        return
+
+    def send_execution_time():
+        currTime = '{0:032b}'.format(int(time.time()))
+        self.send(ExecID1)
+        self.send(currTime[24:32])
+        self.send(ExecID2)
+        self.send(currTime[16:24])
+        self.send(ExecID3)
+        self.send(currTime[8:16])
+        self.send(ExecID4)
+        self.send(currTime[0:8])
+        return
 
     def update(self):
         pass
+
 
 # def analyze_song(filename):
 # 
