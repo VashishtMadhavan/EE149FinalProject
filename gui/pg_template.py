@@ -30,6 +30,7 @@ class Bluetooth(object):
     def __init__(self, mac_address):
         self.s = lightblue.socket()
         #self.s.connect((mac_address, 1))
+        self.send(Initialize)
         print 'done'
 
     def send(self, data):
@@ -49,6 +50,8 @@ class Bluetooth(object):
         CHECKSUM += Speed_Control
         CHECKSUM += output_speed
 
+        self.send_execution_time()
+
         return
 
     def succeed(self):
@@ -62,10 +65,15 @@ class Bluetooth(object):
         CHECKSUM += Speed_Control
         CHECKSUM += output_speed
 
+        self.send_execution_time()
+
         return
 
     def send_execution_time(self):
-        curr_time = '{0:032b}'.format(int(time.time()))
+
+        #fix below to work with latency
+        time_delay = 0
+        curr_time = '{0:032b}'.format(int(time.time() + time_delay))
         
         time_byte = curr_time[24:32]
         self.send(ExecID1)
@@ -97,10 +105,6 @@ class Bluetooth(object):
     def send_checksum(self):
         self.send(256 - CHECKSUM)
         CHECKSUM = 0
-        return
-
-    def start(self):
-        self.send(Initialize)
         return
 
     def game_over(self):
