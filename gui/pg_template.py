@@ -14,7 +14,7 @@ class Bluetooth(object):
 
     # OpCodes and Packet IDs
     Initialize = 19
-    Game_Over = 23
+    Game_Over = 3
     Speed_Control = 31
     DriveID = 34
     ExecID1 = 35
@@ -29,87 +29,54 @@ class Bluetooth(object):
 
     def __init__(self, mac_address):
         self.s = lightblue.socket()
-        #self.s.connect((mac_address, 1))
-        self.send(Initialize)
+        self.s.connect((mac_address, 1))
+        self.send(self.Initialize)
         print 'done'
 
     def send(self, data):
+        print data
         if (type(data) == int):
             data = '{0:08b}'.format(data)
         self.s.send(data)
-        return
 
     def fail(self):
-        DRIVE_SPEED = max(MIN_DRIVE_SPEED, DRIVE_SPEED - 1)
+        print '0'
+        self.send(b'0')
+        return
+        DRIVE_SPEED = max(self.MIN_DRIVE_SPEED, self.DRIVE_SPEED - 1)
         output_speed = DRIVE_SPEED
         if DRIVE_SPEED < 0: 
             output_speed += 10
-        self.send(Speed_Control)
+        self.send(self.Speed_Control)
         self.send(output_speed)
 
-        CHECKSUM += Speed_Control
-        CHECKSUM += output_speed
-
-        self.send_execution_time()
-
-        return
-
-    def succeed(self):
-        DRIVE_SPEED = min(MIN_DRIVE_SPEED, DRIVE_SPEED + 1)
-        output_speed = DRIVE_SPEED
-        if DRIVE_SPEED < 0: 
-            output_speed += 10
-        self.send(Speed_Control)
-        self.send(output_speed)
-        
-        CHECKSUM += Speed_Control
-        CHECKSUM += output_speed
-
-        self.send_execution_time()
-
-        return
-
-    def send_execution_time(self):
-
-        #fix below to work with latency
-        time_delay = 0
-        curr_time = '{0:032b}'.format(int(time.time() + time_delay))
-        
-        time_byte = curr_time[24:32]
-        self.send(ExecID1)
-        self.send(time_byte)
-        CHECKSUM += int(ExecID1)
-        CHECKSUM += int(time_byte)
-
-        time_byte = curr_time[16:24]
-        self.send(ExecID2)
-        self.send(time_byte)
-        CHECKSUM += int(ExecID2)
-        CHECKSUM += int(time_byte)
-
-        time_byte = curr_time[8:16]
-        self.send(ExecID3)
-        self.send(time_byte)
-        CHECKSUM += int(ExecID3)
-        CHECKSUM += int(time_byte)
-
-        time_byte = curr_time[0:8]
-        self.send(ExecID4)
-        self.send(time_byte)
-        CHECKSUM += int(ExecID4)
-        CHECKSUM += int(time_byte)
+        self.CHECKSUM += Speed_Control
+        self.CHECKSUM += output_speed
 
         self.send_checksum()
+
+    def succeed(self):
+        print '1'
+        self.send(b'1')
         return
+        DRIVE_SPEED = min(self.MIN_DRIVE_SPEED, self.DRIVE_SPEED + 1)
+        output_speed = DRIVE_SPEED
+        if DRIVE_SPEED < 0: 
+            output_speed += 10
+        self.send(self.Speed_Control)
+        self.send(output_speed)
+        
+        self.CHECKSUM += Speed_Control
+        self.CHECKSUM += output_speed
+        
+        self.send_checksum()
 
     def send_checksum(self):
-        self.send(256 - CHECKSUM)
-        CHECKSUM = 0
-        return
+        self.send(256 - self.CHECKSUM)
+        self.CHECKSUM = 0
 
     def game_over(self):
-        self.send(Game_Over)
-        return
+        self.send(self.Game_Over)
 
 
 # def analyze_song(filename):
@@ -270,7 +237,7 @@ class Song(object):
         if self.tally > self.threshold:
             self.tally = 0
             self.threshold = max(self.threshold - 1, self.MIN_THRESHOLD)
-            bluetooth.fail()
+            #bluetooth.fail()
         else:
             self.tally += 1
 
@@ -282,7 +249,7 @@ class Song(object):
         if self.tally > self.threshold:
             self.tally = 0
             self.threshold = max(self.threshold + 1, self.MAX_THRESHOLD)
-            bluetooth.succeed()
+            #bluetooth.succeed()
         else:
             self.tally += 1
 
@@ -361,15 +328,21 @@ if __name__ == "__main__":
           if event.unicode.lower() == 'q':
             sys.exit()
           elif event.unicode.lower() == 'a':
-            song.good_note()
+            bluetooth.succeed()
           elif event.unicode.lower() == 'b':
-            song.failed_note()
+            bluetooth.fail()
+          elif event.unicode.lower() == 'g':
+            bluetooth.game_over()
 
       # get ticks since last call
       time_passed = clock.tick( 60 ) # tick takes optional argument that is an int for max frames per second
 
       for hand in all_hands.sprites():
           hand.rect.center = (-hand.rect.width*2, -hand.rect.height*2)
+
+      if not pygame.mixer.get_busy():
+        bluetooth.game_over()
+        print 'game over'
 
       screen.blit(background, (0, 0))
       frame = controller.frame()
