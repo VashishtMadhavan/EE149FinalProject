@@ -30,18 +30,17 @@ class Bluetooth(object):
     def __init__(self, mac_address):
         self.s = lightblue.socket()
         self.s.connect((mac_address, 1))
+        time.sleep(3)
         self.send(self.Initialize)
         print 'done'
 
     def send(self, data):
         print data
-        if (type(data) == int):
-            data = '{0:08b}'.format(data)
-        self.s.send(data)
+        self.s.send(chr(data))
 
     def fail(self):
         print '0'
-        self.send(b'0')
+        self.send(0)
         return
         DRIVE_SPEED = max(self.MIN_DRIVE_SPEED, self.DRIVE_SPEED - 1)
         output_speed = DRIVE_SPEED
@@ -57,7 +56,7 @@ class Bluetooth(object):
 
     def succeed(self):
         print '1'
-        self.send(b'1')
+        self.send(1)
         return
         DRIVE_SPEED = min(self.MIN_DRIVE_SPEED, self.DRIVE_SPEED + 1)
         output_speed = DRIVE_SPEED
