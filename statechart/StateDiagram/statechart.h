@@ -26,4 +26,3 @@ void forward(Serial* device);
 void stop(Serial* device);
 void reverse(Serial* device);
 
-

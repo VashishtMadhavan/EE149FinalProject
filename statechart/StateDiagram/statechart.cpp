@@ -3,10 +3,6 @@ typedef enum{
     INACTIVE = 0,
     ACTIVE
 } robotState_t;
-
-DigitalOut blue(LED3);
-DigitalOut green(LED2);
-DigitalOut red(LED1);
  
 int speed_left = 0;
 int speed_right = 0;
@@ -52,9 +48,9 @@ bool execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, boo
 }
 
 void forward(Serial* device){
-    blue = 0;
-    red = 1;
-    green = 1;
+    //blue = 0;
+    //red = 1;
+    //green = 1;
     device->printf("%c%c%c%c%c", DriveDirect, char((speed_right>>8)&0xFF),  char(speed_right&0xFF),  
     char((speed_left>>8)&0xFF),  char(speed_left&0xFF));
  }
@@ -65,13 +61,12 @@ void forward(Serial* device){
  }
  
 void reverse(Serial* device) {
-    red = 0;
-    blue = 1;
-    green = 1;
+    //red = 0;
+    //blue = 1;
+    //green = 1;
     device->printf("%c%c%c%c%c", DriveDirect, char(((-speed_right)>>8)&0xFF),  char((-speed_right)&0xFF),  
     char(((-speed_left)>>8)&0xFF),  char((-speed_left)&0xFF));
  
 }
-
 
 

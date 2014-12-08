@@ -3,6 +3,10 @@
 Serial bluetooth(PTE22,PTE23);
 Serial device(D14, D15);
 
+DigitalOut blue(LED3);
+DigitalOut green(LED2);
+DigitalOut red(LED1);
+
 int main() {
     wait(3);
     device.baud(57600);
@@ -109,8 +113,19 @@ void sendGameOver() {
 }
 
 void read_device() {
-    while(device.readable()) {
-        device_byte = read_device();
+    if(device.readable()) {
+        int device_byte = device.getc();
+        green = 0;
+        blue = 1;
+        red = 1;
+    }
+    else {
+        green = 1;
+        blue = 0;
+        red = 1;
+    }
+        
+    /*
         switch(device_byte_count) {
             case 0:
                 if (device_byte == Distance) device_byte_count++;
@@ -130,5 +145,5 @@ void read_device() {
     if (sensorDistance > gameDistance) {
         gameOver = true;
         sendGameOver();
-    }
+    }*/
 }
