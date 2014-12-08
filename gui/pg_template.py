@@ -25,6 +25,9 @@ class Bluetooth(object):
     MAX_DRIVE_SPEED = 6;
     MIN_DRIVE_SPEED = -6;
 
+    # Set to false for PLAY
+    DEBUG_MODE = True
+
     def __init__(self, mac_address):
         self.s = lightblue.socket()
         self.s.connect((mac_address, 1))
@@ -40,11 +43,16 @@ class Bluetooth(object):
         self.s.send(chr(data))
 
     def fail(self):
-        print 'fail'
+        if DEBUG_MODE:
+            print '0'
+            self.send(0)
+            return
+
         self.drive_speed = max(self.MIN_DRIVE_SPEED, self.drive_speed - 1)
         output_speed = self.drive_speed
         if self.drive_speed < 0: 
             output_speed = -output_speed | 8
+
         self.send(self.Speed_Control)
         self.send(self.DriveID)
         self.send(output_speed)
@@ -52,7 +60,11 @@ class Bluetooth(object):
         self.send_checksum()
 
     def succeed(self):
-        print 'success'
+        if DEBUG_MODE:
+            print '1'
+            self.send(1)
+            return
+
         self.drive_speed = min(self.MAX_DRIVE_SPEED, self.drive_speed + 1)
         output_speed = self.drive_speed
         if self.drive_speed < 0: 
