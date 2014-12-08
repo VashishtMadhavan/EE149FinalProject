@@ -4,7 +4,6 @@ Serial bluetooth(PTE22,PTE23);
 Serial device(D14, D15);
 
 int main() {
-    resetAllVars();
     wait(3);
     device.baud(57600);
     bluetooth.baud(115200);
