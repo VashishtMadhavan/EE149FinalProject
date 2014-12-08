@@ -14,7 +14,7 @@ class Bluetooth(object):
 
     # OpCodes and Packet IDs
     Initialize = 19
-    Game_Over = 3
+    Game_Over = 23
     Speed_Control = 31
     DriveID = 34
     ExecID1 = 35
@@ -22,57 +22,50 @@ class Bluetooth(object):
     ExecID3 = 37
     ExecID4 = 38
 
-    DRIVE_SPEED = 0
     MAX_DRIVE_SPEED = 6;
     MIN_DRIVE_SPEED = -6;
-    CHECKSUM = 0
 
     def __init__(self, mac_address):
         self.s = lightblue.socket()
         self.s.connect((mac_address, 1))
-        time.sleep(3)
+        time.sleep(1)
+        self.checksum = 0
         self.send(self.Initialize)
-        print 'done'
+        self.checksum = 0
+        self.drive_speed = 0
 
     def send(self, data):
         print data
+        self.checksum += data
         self.s.send(chr(data))
 
     def fail(self):
-        print '0'
-        self.send(0)
-        return
-        DRIVE_SPEED = max(self.MIN_DRIVE_SPEED, self.DRIVE_SPEED - 1)
-        output_speed = DRIVE_SPEED
-        if DRIVE_SPEED < 0: 
-            output_speed += 10
+        print 'fail'
+        self.drive_speed = max(self.MIN_DRIVE_SPEED, self.drive_speed - 1)
+        output_speed = self.drive_speed
+        if self.drive_speed < 0: 
+            output_speed = -output_speed | 8
         self.send(self.Speed_Control)
+        self.send(self.DriveID)
         self.send(output_speed)
-
-        self.CHECKSUM += Speed_Control
-        self.CHECKSUM += output_speed
 
         self.send_checksum()
 
     def succeed(self):
-        print '1'
-        self.send(1)
-        return
-        DRIVE_SPEED = min(self.MIN_DRIVE_SPEED, self.DRIVE_SPEED + 1)
-        output_speed = DRIVE_SPEED
-        if DRIVE_SPEED < 0: 
-            output_speed += 10
+        print 'success'
+        self.drive_speed = min(self.MAX_DRIVE_SPEED, self.drive_speed + 1)
+        output_speed = self.drive_speed
+        if self.drive_speed < 0: 
+            output_speed = -output_speed | 8
         self.send(self.Speed_Control)
+        self.send(self.DriveID)
         self.send(output_speed)
-        
-        self.CHECKSUM += Speed_Control
-        self.CHECKSUM += output_speed
         
         self.send_checksum()
 
     def send_checksum(self):
-        self.send(256 - self.CHECKSUM)
-        self.CHECKSUM = 0
+        self.send(256 - self.checksum)
+        self.checksum = 0
 
     def game_over(self):
         self.send(self.Game_Over)
