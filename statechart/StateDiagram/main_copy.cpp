@@ -66,11 +66,9 @@ void read_bluetooth() {
 }
 
 void start() {
-    // device.printf("%c%c", Start, SafeMode);
     device.putc(Start);
     device.putc(SafeMode);
     wait(.5);
-  //  device.printf("%c%c%c", SensorStream, char(1), BumpsandDrops);
     device.putc(SensorStream);
     device.putc(1);
     device.putc(BumpsandDrops);
@@ -89,15 +87,6 @@ int getSpeed(char input) {
     return speed;
 }
 
-void resetAllVars() {
-    init = false;
-    drive = false;
-    gameOver = false;
-    directionForward = true;
-    currSpeed = 0;
-    bluetooth_byte_count = 0;
-}
-
 void saveVarsToTemp() {
     initTemp = init;
     driveTemp = drive;
@@ -114,7 +103,32 @@ void restoreVarsToTemp() {
     currSpeed = currSpeedTemp;
 }
 
+void sendGameOver() {
+    // bluetooth.printf("%d", gameOver);
+    bluetooth.putc(gameOver);
+}
+
 void read_device() {
-    // read device for victory packet
-    // send victory result to GUI
+    while(device.readable()) {
+        device_byte = read_device();
+        switch(device_byte_count) {
+            case 0:
+                if (device_byte == Distance) device_byte_count++;
+                break;
+            case 1:
+                sensorDistance = (device_byte << 8);
+                device_byte_count++;
+                break;
+            case 2:
+                sensorDistance = (sensorDistance | device_byte);
+            default:
+                device_byte_count = 0;
+                break;
+        }
+    }
+
+    if (sensorDistance > gameDistance) {
+        gameOver = true;
+        sendGameOver();
+    }
 }
