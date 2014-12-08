@@ -1,56 +1,7 @@
-#include <stdlib.h>
-#include <stdbool.h>
-#include <string.h>
-#include "statechart.h"
-
+#include "main_copy.h"
 
 Serial bluetooth(PTE22,PTE23);
 Serial device(D14, D15);
-
-// Bluetooth Commands
-const char         Initialize = 19;
-const char         IsGameOver = 23;
-const char         SpeedControl = 31;
-const char         DriveID = 34;
-
-
-void start();
-void read_bluetooth();
-bool getDriveDirection(char input);
-int getSpeed(char input);
-void resetAllVars();
-void saveVarsToTemp();
-void restoreVarsToTemp();
-
-
-/* Global variables with sensor packet info */
-char bluetooth_byte_count = 0;
-char bluetooth_Data_Byte = 0;
-char bluetooth_ID = 0;
-char bluetooth_byte = 0; // byte from the bluetooth protocol that gets written into by the BlueSMIRF
-
-int16_t sensorDistance = 0;
-
-int checksum = 0;
-
-
-//DECLARING ALL VARIABLES FOR USE IN THE STATECHART
-bool init;
-bool drive;
-bool gameOver;
-int currSpeed=0;
-bool directionForward;
-int16_t gameDistance = 300; //this is the distance to goal for the game
-
-//temp copies for vars
-bool initTemp;
-bool driveTemp;
-bool gameOverTemp;
-int currSpeedTemp;
-bool directionForwardTemp;
-
-
-
 
 int main() {
     resetAllVars();
@@ -59,6 +10,7 @@ int main() {
     bluetooth.baud(115200);
     start();
     bluetooth.attach(&read_bluetooth);
+    device.attach(&read_device);
     //TODO: add sensor for iRobot create
     while(1) {
         execute_statechart(init, drive, gameOver, currSpeed, directionForward, &device, gameDistance, sensorDistance);
@@ -66,11 +18,8 @@ int main() {
      }
 }
 
-
-
-void read_bluetooth(){
+void read_bluetooth() {
     saveVarsToTemp();
-    resetAllVars();
     while (bluetooth.readable()){
         bluetooth_byte = bluetooth.getc();
         switch (bluetooth_byte_count) {
@@ -78,10 +27,13 @@ void read_bluetooth(){
             case 0:
                 if (bluetooth_byte == Initialize) {
                     init = true;
+                    drive = gameOver = false;
                 } else if (bluetooth_byte == IsGameOver) {
                     gameOver = true;
+                    init = drive = false;
                 } else {
                     drive = true;
+                    init = gameOver = false;
                     bluetooth_byte_count++;
                     checksum += bluetooth_byte;
                 }
@@ -102,7 +54,7 @@ void read_bluetooth(){
                 break;
             // get checksum
             case 3:
-                checksum = checksum + bluetooth_byte;
+                checksum += bluetooth_byte;
                 if ((checksum & 0xFF) != 0) {
                     restoreVarsToTemp();
                 }
@@ -113,7 +65,7 @@ void read_bluetooth(){
     return;
 }
 
-void start(){
+void start() {
     // device.printf("%c%c", Start, SafeMode);
     device.putc(Start);
     device.putc(SafeMode);
@@ -186,4 +138,9 @@ void restoreVarsToTemp() {
     gameOver = gameOverTemp;
     directionForward = directionForwardTemp;
     currSpeed = currSpeedTemp;
+}
+
+void read_device() {
+    // read device for victory packet
+    // send victory result to GUI
 }
