@@ -11,8 +11,9 @@ int main() {
     bluetooth.attach(&read_bluetooth);
     device.attach(&read_device);
     //TODO: add sensor for iRobot create
-    while(1) {
-        execute_statechart(init, drive, gameOver, currSpeed, directionForward, &device, gameDistance, sensorDistance);
+    bool done = false;
+    while(!done) {
+        done = execute_statechart(init, drive, gameOver, currSpeed, directionForward, &device, gameDistance, sensorDistance); 
         wait(2);
      }
 }
@@ -84,34 +85,8 @@ bool getDriveDirection(char input) {
 
 int getSpeed(char input) {
     input = 0x07 & input;
-    int speed=0;
-    switch (input){
-        case 0: 
-            speed = 0;
-            break; 
-        case 1: 
-            speed = 50;
-            break; 
-        case 2: 
-            speed = 100;
-            break; 
-        case 3: 
-            speed = 125;
-            break; 
-        case 4: 
-            speed = 150;
-            break; 
-        case 5: 
-            speed = 200;
-            break; 
-        case 6: 
-            speed = 250;
-            break; 
-        default:
-            speed = 0;
-            break;
-       } 
-        return speed;
+    int speed = 50 * input;
+    return speed;
 }
 
 void resetAllVars() {
