@@ -27,7 +27,7 @@ bool drive = false;
 bool gameOver = false;
 int currSpeed = 0;
 bool directionForward = false;
-int16_t gameDistance = 300; //this is the distance to goal for the game
+int16_t gameDistance = 3000; //this is the distance to goal for the game
 
 //temp copies for vars
 bool initTemp;

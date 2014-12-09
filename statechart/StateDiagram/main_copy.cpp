@@ -6,6 +6,9 @@ Serial device(D14, D15);
 DigitalOut blue(LED3);
 DigitalOut green(LED2);
 DigitalOut red(LED1);
+static int16_t start_dist = 0;
+static int16_t initial_dist = 0;
+
 
 int main() {
     wait(3);
@@ -13,11 +16,14 @@ int main() {
     bluetooth.baud(115200);
     start();
     bluetooth.attach(&read_bluetooth);
-    device.attach(&read_device);
+    read_device();
+    
+    initial_dist = start_dist;
+    //device.attach(&read_device);
     //TODO: add sensor for iRobot create
-    bool done = false;
-    while(!done) {
-        done = execute_statechart(init, drive, gameOver, currSpeed, directionForward, &device, gameDistance, sensorDistance); 
+    while(1) {
+        execute_statechart(init, drive, gameOver, currSpeed, directionForward, &device, gameDistance, sensorDistance);
+        read_device();
         wait(2);
      }
 }
@@ -75,7 +81,7 @@ void start() {
     wait(.5);
     device.putc(SensorStream);
     device.putc(1);
-    device.putc(BumpsandDrops);
+    device.putc(Distance);
     wait(.5);
 }
 
@@ -108,42 +114,84 @@ void restoreVarsToTemp() {
 }
 
 void sendGameOver() {
-    // bluetooth.printf("%d", gameOver);
-    bluetooth.putc(gameOver);
+    bluetooth.printf("youre done\n");
+    //bluetooth.putc(IsGameOver);
 }
 
 void read_device() {
-    if(device.readable()) {
-        int device_byte = device.getc();
-        green = 0;
-        blue = 1;
-        red = 1;
-    }
-    else {
-        green = 1;
-        blue = 0;
-        red = 1;
-    }
-        
-    /*
+    bool finished = false;
+    int device_checksum = 0;
+    bool ignored= false;
+    bluetooth.printf("Start Distance: \n");
+    bluetooth.printf("%d\n",start_dist);
+    green =0;
+    red=1; 
+    blue =1;
+    
+    while(device.readable()) {
         switch(device_byte_count) {
             case 0:
-                if (device_byte == Distance) device_byte_count++;
+                device_byte = device.getc();
+                if (device_byte == 19) device_byte_count++;
+                bluetooth.printf("First byte\n");
+                bluetooth.printf("%d\n", device_byte);
                 break;
             case 1:
-                sensorDistance = (device_byte << 8);
+                device_byte = device.getc();
+                bluetooth.printf("Num bytes\n");
+                bluetooth.printf("%d\n", device_byte);
+                device_checksum+= device_byte;
                 device_byte_count++;
                 break;
             case 2:
+                device_byte = device.getc();
+                bluetooth.printf("Packet ID\n");
+                bluetooth.printf("%d\n", device_byte);
+                device_checksum+= device_byte;
+                if(device_byte == Distance){ 
+                    device_byte_count++;
+                } else {
+                    device_byte_count = 0;
+                }
+                break;
+            case 3:
+                device_byte = device.getc();
+                device_checksum+= device_byte;
+                bluetooth.printf("Distance first Byte\n");
+                bluetooth.printf("%d\n",device_byte);
+                sensorDistance = (device_byte << 8);
+                device_byte_count++;
+                break;
+            case 4:
+                device_byte = device.getc();
+                device_checksum+= device_byte;
+                bluetooth.printf("Distance second Byte");
+                bluetooth.printf("%d\n",device_byte);
                 sensorDistance = (sensorDistance | device_byte);
-            default:
-                device_byte_count = 0;
+                device_byte_count++;
+                break;
+            case 5:
+                device_byte = device.getc();
+                bluetooth.printf("Checksum\n");
+                bluetooth.printf("%d\n", device_byte);
+                device_checksum+= device_byte;
+                device_byte_count =0;
+                finished =true;
+                start_dist += sensorDistance;
                 break;
         }
-    }
-
-    if (sensorDistance > gameDistance) {
-        gameOver = true;
+        if(finished){
+            green = 1;
+            blue =1;
+            red=0;
+            break;
+        }  
+    }        
+    if (!ignored &&  start_dist  > 0) {
+        blue = 0;
+        green =1;
+        red =1;
+        //gameOver = true;
         sendGameOver();
-    }*/
+    }
 }

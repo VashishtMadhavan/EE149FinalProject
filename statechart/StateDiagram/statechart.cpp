@@ -7,7 +7,7 @@ typedef enum{
 int speed_left = 0;
 int speed_right = 0;
 
-bool execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, bool directionForward,  
+void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, bool directionForward,  
     Serial* device, int16_t gameDistance, const int16_t netDistance){
     static robotState_t state = INACTIVE;
     //static int16_t goalDistance = gameDistance;
@@ -48,9 +48,6 @@ bool execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, boo
 }
 
 void forward(Serial* device){
-    //blue = 0;
-    //red = 1;
-    //green = 1;
     device->printf("%c%c%c%c%c", DriveDirect, char((speed_right>>8)&0xFF),  char(speed_right&0xFF),  
     char((speed_left>>8)&0xFF),  char(speed_left&0xFF));
  }
@@ -61,12 +58,8 @@ void forward(Serial* device){
  }
  
 void reverse(Serial* device) {
-    //red = 0;
-    //blue = 1;
-    //green = 1;
     device->printf("%c%c%c%c%c", DriveDirect, char(((-speed_right)>>8)&0xFF),  char((-speed_right)&0xFF),  
     char(((-speed_left)>>8)&0xFF),  char((-speed_left)&0xFF));
  
 }
-
 
