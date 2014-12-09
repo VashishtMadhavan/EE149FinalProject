@@ -16,15 +16,15 @@ int main() {
     bluetooth.baud(115200);
     start();
     bluetooth.attach(&read_bluetooth);
-    read_device();
+    // read_device();
     
     initial_dist = start_dist;
-    //device.attach(&read_device);
+    device.attach(&read_device);
     //TODO: add sensor for iRobot create
     while(1) {
         execute_statechart(init, drive, gameOver, currSpeed, directionForward, &device, gameDistance, sensorDistance);
-        read_device();
-        wait(2);
+        // read_device();
+        wait(.5);
      }
 }
 
@@ -82,7 +82,13 @@ void start() {
     device.putc(SensorStream);
     device.putc(1);
     device.putc(Distance);
-    wait(.5);
+    // wait();
+    bluetooth.printf("Read1: %d\n", device.getc());
+    bluetooth.printf("Read2: %d\n", device.getc());
+    bluetooth.printf("Read3: %d\n", device.getc());
+    bluetooth.printf("Read4: %d\n", device.getc());
+    bluetooth.printf("Read5: %d\n", device.getc());
+    bluetooth.printf("Done here\n" );
 }
 
 bool getDriveDirection(char input) {
@@ -114,84 +120,81 @@ void restoreVarsToTemp() {
 }
 
 void sendGameOver() {
-    bluetooth.printf("youre done\n");
-    //bluetooth.putc(IsGameOver);
+    // bluetooth.printf("youre done\n");
+    bluetooth.putc(IsGameOver);
 }
 
 void read_device() {
     bool finished = false;
     int device_checksum = 0;
-    bool ignored= false;
-    bluetooth.printf("Start Distance: \n");
-    bluetooth.printf("%d\n",start_dist);
+    bool ignored = false;
+    // bluetooth.printf("Start Distance: \n");
+    // bluetooth.printf("%d\n",start_dist);
     green =0;
     red=1; 
     blue =1;
-    
-    while(device.readable()) {
-        switch(device_byte_count) {
-            case 0:
-                device_byte = device.getc();
-                if (device_byte == 19) device_byte_count++;
-                bluetooth.printf("First byte\n");
-                bluetooth.printf("%d\n", device_byte);
-                break;
-            case 1:
-                device_byte = device.getc();
-                bluetooth.printf("Num bytes\n");
-                bluetooth.printf("%d\n", device_byte);
-                device_checksum+= device_byte;
-                device_byte_count++;
-                break;
-            case 2:
-                device_byte = device.getc();
-                bluetooth.printf("Packet ID\n");
-                bluetooth.printf("%d\n", device_byte);
-                device_checksum+= device_byte;
-                if(device_byte == Distance){ 
-                    device_byte_count++;
-                } else {
-                    device_byte_count = 0;
-                }
-                break;
-            case 3:
-                device_byte = device.getc();
-                device_checksum+= device_byte;
-                bluetooth.printf("Distance first Byte\n");
-                bluetooth.printf("%d\n",device_byte);
-                sensorDistance = (device_byte << 8);
-                device_byte_count++;
-                break;
-            case 4:
-                device_byte = device.getc();
-                device_checksum+= device_byte;
-                bluetooth.printf("Distance second Byte");
-                bluetooth.printf("%d\n",device_byte);
-                sensorDistance = (sensorDistance | device_byte);
-                device_byte_count++;
-                break;
-            case 5:
-                device_byte = device.getc();
-                bluetooth.printf("Checksum\n");
-                bluetooth.printf("%d\n", device_byte);
-                device_checksum+= device_byte;
-                device_byte_count =0;
-                finished =true;
-                start_dist += sensorDistance;
-                break;
-        }
-        if(finished){
-            green = 1;
-            blue =1;
-            red=0;
-            break;
-        }  
-    }        
-    if (!ignored &&  start_dist  > 0) {
-        blue = 0;
-        green =1;
-        red =1;
-        //gameOver = true;
-        sendGameOver();
+    while(1) {
+    // while(device.readable()) {
+    //     switch(device_byte_count) {
+    //         case 0:
+    //             device_byte = device.getc();
+    //             if (device_byte == 19) device_byte_count++;
+    //             bluetooth.printf("First byte: %d\n", device_byte);
+    //             break;
+    //         case 1:
+    //             device_byte = device.getc();
+    //             bluetooth.printf("Num bytes: %d\n", device_byte);
+    //             device_checksum += device_byte;
+    //             device_byte_count++;
+    //             break;
+    //         case 2:
+    //             device_byte = device.getc();
+    //             bluetooth.printf("Packet ID: %d\n", device_byte);
+    //             if (device_byte == Distance){ 
+    //                 device_byte_count++;
+    //                 device_checksum += device_byte;
+    //             } else {
+    //                 device_byte_count = 0;
+    //             }
+    //             break;
+    //         case 3:
+    //             device_byte = device.getc();
+    //             device_checksum += device_byte;
+    //             bluetooth.printf("Distance byte 1: %d\n", device_byte);
+    //             sensorDistance = (device_byte << 8);
+    //             device_byte_count++;
+    //             break;
+    //         case 4:
+    //             device_byte = device.getc();
+    //             device_checksum += device_byte;
+    //             bluetooth.printf("Distance byte 2: %d\n", device_byte);
+    //             sensorDistance = (sensorDistance | (int16_t) device_byte);
+    //             device_byte_count++;
+    //             break;
+    //         case 5:
+    //             device_byte = device.getc();
+    //             bluetooth.printf("device_checksum: %d\n", device_byte);
+    //             device_checksum += device_byte;
+    //             device_byte_count = 0;
+    //             finished = true;
+    //             start_dist += sensorDistance;
+    //             break;
+    //     }
+    //     if (finished){
+    //         green = 1;
+    //         blue =1;
+    //         red=0;
+    //         break;
+    //     }  
+    // }        
+    // if (!ignored &&  start_dist  > 0) {
+    //     blue = 0;
+    //     green = 1;
+    //     red = 1;
+    //     gameOver = true;
+    //     drive = init = false;
+    //     sendGameOver();
+    // }
+        // bluetooth.printf("Read: %d\n", device.getc());
     }
 }
