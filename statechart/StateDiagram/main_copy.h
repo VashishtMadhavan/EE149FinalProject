@@ -14,8 +14,14 @@ char bluetooth_byte_count = 0;
 char bluetooth_Data_Byte = 0;
 char bluetooth_ID = 0;
 char bluetooth_byte = 0; // byte from the bluetooth protocol that gets written into by the BlueSMIRF
-char device_byte = 0;
+
+char device_num_bytes = 0;
+char device_packet_id=0;
+char device_data_byte =0;
+char device_checksum=0;
 char device_byte_count = 0;
+char star_char =0;
+char device_byte=0;
 
 int16_t sensorDistance = 0;
 
