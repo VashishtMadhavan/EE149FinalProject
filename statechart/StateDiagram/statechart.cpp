@@ -8,9 +8,8 @@ int speed_left = 0;
 int speed_right = 0;
 
 void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, bool directionForward,  
-    Serial* device, int16_t gameDistance, const int16_t netDistance){
+    Serial* device) {
     static robotState_t state = INACTIVE;
-    //static int16_t goalDistance = gameDistance;
     static bool victory = false;
    
     if (state == INACTIVE && init){

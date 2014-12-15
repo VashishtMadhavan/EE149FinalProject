@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 #include "statechart.h"
 
 // Bluetooth Commands
@@ -33,7 +34,6 @@ bool drive = false;
 bool gameOver = false;
 int currSpeed = 0;
 bool directionForward = false;
-int16_t gameDistance = 3000; //this is the distance to goal for the game
 
 //temp copies for vars
 bool initTemp;
@@ -48,4 +48,4 @@ bool getDriveDirection(char input);
 int getSpeed(char input);
 void saveVarsToTemp();
 void restoreVarsToTemp();
-void read_device();
+void sendGameOver();

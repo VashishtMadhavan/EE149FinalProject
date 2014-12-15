@@ -21,7 +21,7 @@ const char         Distance = 19;
 const char         Angle = 20;
 
 
-void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, bool directionForward, Serial* device, int16_t gameDistance, const int16_t netDistance);
+void execute_statechart(bool init, bool drive, bool gameOver, int currSpeed, bool directionForward, Serial* device);
 void forward(Serial* device);
 void stop(Serial* device);
 void reverse(Serial* device);
