@@ -14,6 +14,8 @@ import threading
 DEBUG_MODE = 0
 
 import Leap
+start = None
+TIME = []
 
 class Bluetooth(object):
 
@@ -35,16 +37,15 @@ class Bluetooth(object):
 
     def __init__(self, mac_address):
         self.s = lightblue.socket()
-        self.s.connect((mac_address, 1))
+        #self.s.connect((mac_address, 1))
         self.checksum = 0
-        self.send(self.Initialize)
+        #self.send(self.Initialize)
         self.checksum = 0
         self.drive_speed = 0
 
     def send(self, data):
-        print('SENDING BLUETOOTH', data)
         self.checksum += data
-        self.s.send(chr(data))
+        #self.s.send(chr(data))
 
     def recv(self, *args):
         return self.s.recv(*args)
@@ -77,6 +78,7 @@ class Bluetooth(object):
         if self.drive_speed < 0: 
             output_speed = -output_speed | 8
         self.send(self.Speed_Control)
+        TIME.append(start - time.time())
         self.send(self.DriveID)
         self.send(output_speed)
         
@@ -99,6 +101,7 @@ class Hand(sprite.DirtySprite):
     super(Hand, self).__init__()
 
     self.image = self.load_image(is_left)
+    self.real_image = self.load_image(is_left)
     self.rect = self.image.get_rect()
     if is_left:
         Hand.left = self
@@ -109,6 +112,10 @@ class Hand(sprite.DirtySprite):
     hand = image.load('{}_hand.png'.format("left" if is_left else "right")).convert_alpha()
     hand = pygame.transform.scale(hand, (Hand.WIDTH, Hand.HEIGHT))
     return hand
+
+  def rotate(self, angle):
+    angle = -(angle * 180 / Leap.PI)
+    self.image = pygame.transform.rotate(self.real_image, angle)
 
 class GlobalState(object):
     time = 0
@@ -223,6 +230,40 @@ def growing_threshold(self, failed, bluetooth):
 
 DEFAULT_THRESHOLD = 3
 
+class ProgressBar(sprite.DirtySprite):
+    def __init__(self, title, max_value, rect, background_color=None):
+        super(ProgressBar, self).__init__()
+        self.title = title
+        self.max_value = max_value
+        self.rect = rect
+        self.image = pygame.Surface((self.rect.width, self.rect.height)).convert()
+        if not background_color:
+            background_color = (255, 255, 255)
+        self.background_color = background_color
+        self.line_color = (255, 0, 0)
+        self.progress_color = (0, 255, 0)
+        self.robot_color = (0, 0, 255)
+
+    def progress(self, value):
+        self.value = value
+
+    def update(self):
+        self.image.fill(self.background_color)
+
+        pos = (self.value / self.max_value) * self.rect.width
+
+        font = pygame.font.Font(None, 32)
+        text_size = font.size(self.title)
+        rendered = font.render(self.title, True, (0, 0, 0))
+        text_pos = self.rect.width/2 - text_size[0]/2, 0
+        self.image.blit(rendered, text_pos)
+
+        start = 0, self.rect.height / 2
+        end = self.rect.right, self.rect.height / 2
+        pygame.draw.line(self.image, self.line_color, start, end, 2)
+        robot_pos = int(pos), self.rect.height / 2
+        pygame.draw.circle(self.image, self.robot_color, robot_pos, 10, 0)
+
 class Song(object):
     def __init__(self, song, sprite_group, scoring_method, bluetooth):
         path = os.path.join('songs', song['name'], 'song.wav')
@@ -279,41 +320,34 @@ class Song(object):
 WIDTH = 800
 HEIGHT = 600
 
-def init():
+def init(GS):
     # initialize leap motion
-    controller = Leap.Controller()
+    GS.controller = Leap.Controller()
 
     # initialize pygame
     pygame.init()
 
     # setup the screen
     scr_size = (WIDTH, HEIGHT)  # first is width, second height
-    screen = pygame.display.set_mode(scr_size)
+    GS.screen = pygame.display.set_mode(scr_size)
     pygame.display.set_caption("DDR")
 
     # load the background
     # solid colors
-    background = pygame.Surface(scr_size)
-    background = background.convert()
-    background.fill((255, 255, 255)) # RGB colors
+    GS.background = pygame.Surface(scr_size)
+    GS.background = GS.background.convert()
+    GS.background.fill((255, 255, 255)) # RGB colors
 
     # draw background and update display
-    screen.blit(background, (0, 0))
+    GS.screen.blit(GS.background, (0, 0))
     pygame.display.flip() 
 
     pygame.mouse.set_visible(True)
 
     random.seed()
 
-    clock = pygame.time.Clock()
-
-    return screen, background, clock, controller
-
 def connect_bluetooth():
-    blue = Bluetooth('00:06:66:00:A6:9B')
-    return blue
-
-
+    return Bluetooth('00:06:66:00:A6:9B')
 
 # create groups
 def init_models(filename, scoring_method, bluetooth):
@@ -335,22 +369,12 @@ def transform_coordinates(pos):
     """Transforms the coordinate system of the Leap Motion to the screen"""
     return ((pos.x + VIEWPORT_LEN) / (VIEWPORT_LEN * 2) * WIDTH, (pos.z + VIEWPORT_LEN) / (VIEWPORT_LEN * 2) * HEIGHT)
 
-def load_song_names():
-    songs = os.listdir('songs')
-    songs = [x for x in songs if not x[0] == '.']
-    l = []
-    for song in songs:
-        with open(os.path.join('songs', song, 'config.json')) as f:
-            j = json.load(f)
-            j['name'] = song
-            l.append(j)
-    return l
-
 stop = threading.Event()
 
 def game_over_check(bluetooth):
     bluetooth.s.setblocking(False)
     accum_messages = ""
+    return
     while not stop.is_set():
         a = None
         try:
@@ -368,157 +392,248 @@ def game_over_check(bluetooth):
             print(a, end='', sep='')
             accum_messages += a
 
-INIT = 0
-LOADING = 1
-PLAYING = 2
-PICK_DIFFICULTY = 3
+MAX_DIST = 3000
 
-MAX_DIST = 1800
-
-def main():
-    state = INIT
-    screen, background, clock, controller = init()
-    font = pygame.font.Font(None, 32)
-    GS.screen = screen
-    score = 0
-    index = 0
-
-    def quit():
-        stop.set()
+class State(object):
+    def quit(self):
         sys.exit()
 
-    songs = load_song_names()
-    scoring_methods = SCORING_METHODS.items()
+class Playing(State):
+    def __call__(self):
+      state = None
+      for event in pygame.event.get():
+        if event.type == QUIT:
+          self.quit()
+        elif event.type == KEYDOWN:
+          if event.unicode.lower() == 'q':
+            self.quit()
+          elif event.unicode.lower() == 'a':
+            GS.bluetooth.succeed()
+          elif event.unicode.lower() == 'b':
+            GS.bluetooth.fail()
+          elif event.unicode.lower() == 'g':
+            GS.bluetooth.game_over()
+
+      if not pygame.mixer.get_busy():
+        state = GameOver
+        GS.win = False
+
+      GS.screen.blit(GS.background, (0, 0))
+
+      #put the hands off screen
+      Hand.right.rect.center = Hand.left.rect.center = (-100, -100)
+
+      frame = GS.controller.frame()
+      for hand in frame.hands:
+        conv = transform_coordinates(hand.palm_position)
+        hand_o = (Hand.left if hand.is_left else Hand.right)
+        hand_o.rect.center = conv
+        dirt = hand.direction
+        dirt.z = -1
+        dirt = dirt.normalized
+        hand_o.rotate(dirt.yaw)
+     
+      surface = GS.font.render("Drive speed: {}".format(GS.bluetooth.drive_speed), True, (0, 255, 0))
+      GS.screen.blit(surface, (30, 30))
+      surface = GS.font.render("Distance left (meters): {:.2f}".format((MAX_DIST - GS.song.accum_dist)/1000), True, (0, 255, 0))
+      GS.screen.blit(surface, (30, 70))
+
+      GS.robot_progress.progress(GS.song.accum_dist)
+      GS.time_progress.progress((pygame.time.get_ticks() - GS.song_start)/ 1000.0)
+      GS.all_sprites.update()
+      GS.all_notes.update()
+      GS.time = pygame.time.get_ticks()
+      GS.song.update()
+      GS.all_notes.draw(GS.screen)
+      GS.all_sprites.draw(GS.screen)
+      collided = pygame.sprite.groupcollide(GS.all_notes, GS.all_hands, False, False)
+      for note in collided:
+          if note.can_hit:
+              global start
+              start = time.time()
+              note.kill()
+              GS.song.good_note()
+
+      if GS.song.accum_dist > MAX_DIST or GS.song.accum_dist < -(MAX_DIST/20):
+        state = GameOver
+        GS.win = (GS.song.accum_dist > MAX_DIST)
+
+      pygame.display.flip()
+      return state
+
+class Init(State):
+    def __init__(self):
+        super(Init, self).__init__()
+        self.index = 0
+        self.songs = self.load_song_names()
+
+    def load_song_names(self):
+        songs = os.listdir('songs')
+        songs = [x for x in songs if not x[0] == '.']
+        l = []
+        for song in songs:
+            with open(os.path.join('songs', song, 'config.json')) as f:
+                j = json.load(f)
+                j['name'] = song
+                l.append(j)
+        return l
+
+    def __call__(self):
+        state = None
+        GS.screen.fill((255, 255, 255))
+
+        for event in pygame.event.get( ):
+            if event.type == QUIT:
+                sys.exit( )
+            elif event.type == KEYDOWN:
+                if event.unicode.lower() == ' ':
+                    GS.filename = self.songs[self.index]
+                    return PickDifficulty
+                elif event.key == pygame.K_UP:
+                    self.index -= 1
+                elif event.key == pygame.K_DOWN:
+                    self.index += 1
+                elif event.unicode.lower() == 'q':
+                    quit()
+
+        surface = GS.font.render("spacebar to select song, up and down arrow to scroll", True, (0, 255, 0))
+        GS.screen.blit(surface, (30, 30))
+        top = 60
+        self.index = min(self.index, len(self.songs) - 1)
+        self.index = max(self.index, 0)
+        for i, song in enumerate(self.songs):
+            s = song['title']
+            if i == self.index:
+                s = '>>' + s + '<<'
+            surface = GS.font.render(s, True, (0, 255, 0))
+            GS.screen.blit(surface, (45, top))
+            top += 30
+        pygame.display.flip()
+
+class PickDifficulty(State):
+    def __init__(self):
+        super(PickDifficulty, self).__init__()
+        self.index = 0
+        self.scoring_methods = SCORING_METHODS.items()
+
+    def __call__(self):
+        GS.screen.fill((255, 255, 255))
+
+        for event in pygame.event.get( ):
+            if event.type == QUIT:
+                self.quit()
+            elif event.type == KEYDOWN:
+                if event.unicode.lower() == ' ':
+                    GS.scoring_method = self.scoring_methods[self.index][1]
+                    return Loading
+                elif event.key == pygame.K_UP:
+                    self.index -= 1
+                elif event.key == pygame.K_DOWN:
+                    self.index += 1
+                elif event.unicode.lower() == 'q':
+                    quit()
+
+        surface = GS.font.render("spacebar to select method, up and down arrow to scroll", True, (0, 255, 0))
+        GS.screen.blit(surface, (30, 30))
+        top = 60
+        index = min(self.index, len(self.scoring_methods) - 1)
+        index = max(self.index, 0)
+        for i, meth in enumerate(self.scoring_methods):
+            s = meth[0]
+            if i == self.index:
+                s = '>>' + s + '<<'
+            surface = GS.font.render(s, True, (0, 255, 0))
+            GS.screen.blit(surface, (45, top))
+            top += 30
+        pygame.display.flip()
+
+class Loading(State):
+    def __call__(self):
+        GS.screen.fill((255, 255, 255))
+
+        surface = GS.font.render("loading...", True, (0, 255, 0))
+        GS.screen.blit(surface, (30, 30))
+        pygame.display.flip()
+
+        GS.bluetooth = connect_bluetooth()
+        game_over_t = threading.Thread(target=lambda: game_over_check(GS.bluetooth))
+        game_over_t.daemon = True
+        game_over_t.start()
+        GS.all_sprites, GS.all_hands, GS.all_notes, GS.song = init_models(GS.filename, GS.scoring_method, GS.bluetooth)
+        rect = pygame.Rect(0, 0, 400, 50)
+        rect.right = WIDTH - 10
+        rect.top = 10
+        GS.robot_progress = ProgressBar("Robot Progress", MAX_DIST, rect)
+        rect = pygame.Rect(0, 0, 400, 50)
+        rect.right = WIDTH - 10
+        rect.top = 10 + 50
+        GS.time_progress = ProgressBar("Song Progress", GS.song.sound.get_length(), rect)
+        GS.all_sprites.add(GS.robot_progress)
+        GS.all_sprites.add(GS.time_progress)
+
+        return WaitingForHands
+
+class WaitingForHands(State):
+    def __call__(self):
+        font = pygame.font.Font(None, 32)
+
+        frame = GS.controller.frame()
+        if not frame.hands:
+            GS.screen.fill((255, 255, 255))
+            surface = GS.font.render("Please place your hands in the leap motion field of view", True, (0, 255, 0))
+            GS.screen.blit(surface, (30, 30))
+            pygame.display.flip()
+        else:
+            GS.song.sound.play()
+            GS.song_start = pygame.time.get_ticks()
+            GS.song.init(pygame.time.get_ticks())
+            return Playing
+
+class GameOver(State):
+    def __call__(self):
+        GS.screen.fill((255, 255, 255))
+        GS.song.sound.stop()
+
+        surface = GS.font.render("Game Over!", True, (0, 255, 0))
+        textpos = surface.get_rect()
+        textpos.centerx = GS.background.get_rect().centerx
+        textpos.centery = 30
+        GS.screen.blit(surface, textpos)
+        surface = GS.font.render("You {}".format("win!" if GS.win else "lose!"), True, (0, 255, 0))
+        textpos = surface.get_rect()
+        textpos.centerx = GS.background.get_rect().centerx
+        textpos.centery = 100
+        GS.screen.blit(surface, textpos)
+        surface = GS.font.render("Spacebar to play again, q to quit", True, (0, 255, 0))
+        textpos = surface.get_rect()
+        textpos.centerx = GS.background.get_rect().centerx
+        textpos.centery = 150
+        GS.screen.blit(surface, textpos)
+        pygame.display.flip()
+
+        for event in pygame.event.get( ):
+            if event.type == QUIT:
+                self.quit()
+            elif event.type == KEYDOWN:
+                if event.unicode.lower() == ' ':
+                    return Init
+                elif event.unicode.lower() == 'q':
+                    self.quit()
+
+def main():
+    init(GS)
+    GS.song_start = 0
+    GS.index = 0
+    GS.win = False
+    GS.font = pygame.font.Font(None, 32)
+    state = Init
+
     while True:
         if stop.is_set():
             break
-        if state == PLAYING:
-          for event in pygame.event.get( ):
-            if event.type == QUIT:
-              sys.exit( )
-            elif event.type == KEYDOWN:
-              if event.unicode.lower() == 'q':
-                quit()
-              elif event.unicode.lower() == 'a':
-                bluetooth.succeed()
-              elif event.unicode.lower() == 'b':
-                bluetooth.fail()
-              elif event.unicode.lower() == 'g':
-                bluetooth.game_over()
+        state_inst = state()
+        state = state_inst() or state
 
-          if not pygame.mixer.get_busy():
-            bluetooth.game_over()
-            print('game over')
-            quit()
-
-          screen.blit(background, (0, 0))
-
-          frame = controller.frame()
-          for hand in frame.hands:
-              conv = transform_coordinates(hand.palm_position)
-              hand_o = (Hand.left if hand.is_left else Hand.right)
-              hand_o.rect.center = conv
-         
-          # draw!
-          all_notes.update()
-          GS.time = pygame.time.get_ticks()
-          song.update()
-          all_notes.draw(screen)
-          all_sprites.draw(screen)
-          collided = pygame.sprite.groupcollide(all_notes, all_hands, False, False)
-          for note in collided:
-              if note.can_hit:
-                  note.kill()
-                  song.good_note()
-
-          if song.accum_dist > MAX_DIST or song.accum_dist < 0:
-              bluetooth.game_over()
-              quit()
-
-          surface = font.render("Drive speed: {}".format(bluetooth.drive_speed), True, (0, 255, 0))
-          screen.blit(surface, (30, 30))
-          surface = font.render("GS ERRORS: {}".format(GS.errors), True, (0, 255, 0))
-          screen.blit(surface, (30, 70))
-          surface = font.render("accum dist: {}".format(song.accum_dist), True, (0, 255, 0))
-          screen.blit(surface, (30, 100))
-          pygame.display.flip()
-        elif state == INIT:
-            screen.fill((255, 255, 255))
-
-            for event in pygame.event.get( ):
-                if event.type == QUIT:
-                    sys.exit( )
-                elif event.type == KEYDOWN:
-                    if event.unicode.lower() == ' ':
-                        filename = songs[index]
-                        state = PICK_DIFFICULTY
-                    elif event.key == pygame.K_UP:
-                        index -= 1
-                    elif event.key == pygame.K_DOWN:
-                        index += 1
-                    elif event.unicode.lower() == 'q':
-                        quit()
-
-            surface = font.render("spacebar to select song, up and down arrow to scroll", True, (0, 255, 0))
-            screen.blit(surface, (30, 30))
-            top = 60
-            index = min(index, len(songs) - 1)
-            index = max(index, 0)
-            for i, song in enumerate(songs):
-                s = song['title']
-                if i == index:
-                    s = '>>' + s + '<<'
-                surface = font.render(s, True, (0, 255, 0))
-                screen.blit(surface, (45, top))
-                top += 30
-            pygame.display.flip()
-        elif state == PICK_DIFFICULTY:
-            screen.fill((255, 255, 255))
-
-            for event in pygame.event.get( ):
-                if event.type == QUIT:
-                    sys.exit( )
-                elif event.type == KEYDOWN:
-                    if event.unicode.lower() == ' ':
-                        scoring_method = scoring_methods[index][1]
-                        state = LOADING
-                    elif event.key == pygame.K_UP:
-                        index -= 1
-                    elif event.key == pygame.K_DOWN:
-                        index += 1
-                    elif event.unicode.lower() == 'q':
-                        quit()
-
-            surface = font.render("spacebar to select method, up and down arrow to scroll", True, (0, 255, 0))
-            screen.blit(surface, (30, 30))
-            top = 60
-            index = min(index, len(scoring_methods) - 1)
-            index = max(index, 0)
-            for i, meth in enumerate(scoring_methods):
-                s = meth[0]
-                if i == index:
-                    s = '>>' + s + '<<'
-                surface = font.render(s, True, (0, 255, 0))
-                screen.blit(surface, (45, top))
-                top += 30
-            pygame.display.flip()
-
-        elif state == LOADING:
-            surface = font.render("loading...", True, (0, 255, 0))
-            screen.fill((255, 255, 255))
-            screen.blit(surface, (30, 30))
-            pygame.display.flip()
-
-            bluetooth = connect_bluetooth()
-            game_over_t = threading.Thread(target=lambda: game_over_check(bluetooth))
-            game_over_t.daemon = True
-            game_over_t.start()
-            all_sprites, all_hands, all_notes, song = init_models(filename, scoring_method, bluetooth)
-
-            chan = song.sound.play()
-            total_time = 0
-            song.init(pygame.time.get_ticks())
-            state = PLAYING
 
 if __name__ == "__main__":
     main()
