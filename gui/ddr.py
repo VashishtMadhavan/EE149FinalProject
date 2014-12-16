@@ -168,9 +168,8 @@ class Note(sprite.DirtySprite):
             self.image.set_alpha(alpha)
         elif not self.hit:
             self.hit = True
-            s = pygame.Surface((self.image.get_width(), self.image.get_height())).convert_alpha()
-            s.fill((0, 255, 0, 128))
-            self.image.blit(s, (0, 0))
+            center = (self.image.get_width() / 2, self.image.get_height() / 2)
+            pygame.draw.circle(self.image, (0, 255, 0, 128), center, self.image.get_width() /2 )
 
     def set_delay(self, delay):
         self.delay = delay
@@ -627,11 +626,14 @@ def main():
     GS.win = False
     GS.font = pygame.font.Font(None, 32)
     state = Init
+    last_state = None
 
     while True:
         if stop.is_set():
             break
-        state_inst = state()
+        if state != last_state:
+            state_inst = state()
+            last_state = state
         state = state_inst() or state
 
 
